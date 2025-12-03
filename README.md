@@ -8,13 +8,14 @@ Instructions and tutorial [Usage](Instructions.md)
 # Installation for Linux
 
 ## Cloning
-```https://github.com/DavidKart/RESOLVE.git
-cd RESOLVE```
+```https://github.com/DavidKart/RESOLVE.git``` <br>
+```cd RESOLVE```
 
-## Creating python Environment
+## Creating python environment
 
 ### Use the provided yaml
-```conda env create -f environment_minimal.yml```
+```conda env create -f environment_minimal.yml``` <br>
+```conda activate RESOLVE_env```
 
 
 ### Or install libraries manually:
