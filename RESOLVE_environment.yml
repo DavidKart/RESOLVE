@@ -1,0 +1,22 @@
+name: RESOLVE_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numba=0.62
+  - numba-cuda=0.22
+  - cuda-toolkit=12.6
+  - pip
+  - pip:
+      - matplotlib
+      - mrcfile
+      - networkx
+      - numpy
+      - pandas
+      - pillow
+      - pyfftw
+      - pyqt5
+      - scikit-image
+      - scipy
+      - seaborn
+      - tifffile
