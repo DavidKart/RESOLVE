@@ -8,8 +8,8 @@ Instructions and tutorial [Usage](Instructions.md)
 # Installation for Linux
 
 ## Cloning
-```https://github.com/DavidKart/RESOLVE.git```
-```cd```
+```https://github.com/DavidKart/RESOLVE.git
+cd RESOLVE```
 
 ## Creating python Environment
 
