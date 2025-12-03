@@ -8,8 +8,8 @@ Instructions and tutorial [Usage](Instructions.md)
 # Installation for Linux
 
 ## Cloning
-```git clone https://github.com/```
-```cd ```
+```https://github.com/DavidKart/RESOLVE.git```
+```cd```
 
 ## Creating python Environment
 
@@ -18,7 +18,6 @@ Instructions and tutorial [Usage](Instructions.md)
 
 
 ### Or install libraries manually:
-```
   - python=3.10
   - numba=0.62
   - numba-cuda=0.22
@@ -36,7 +35,6 @@ Instructions and tutorial [Usage](Instructions.md)
       - scipy
       - seaborn
       - tifffile
-```
 
 ## Verifying numba cuda
 ```python -c "from numba import cuda; print('CUDA available:', cuda.is_available()); print('GPUs:', [gpu.name for gpu in cuda.gpus] if cuda.is_available() else 'None')"```
