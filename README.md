@@ -1,5 +1,5 @@
 # RESOLVE
-Tool for resolution estimation in cryo-EM tomograms, micrographs and STA/SPA maps.
+Tool for resolution estimation in cryo-EM tomograms, tilt-series, micrographs and STA/SPA maps.
 
 ## Usage
 Instructions and tutorial: [Usage](Instructions.md)
