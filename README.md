@@ -2,12 +2,12 @@
 Tool for resolution estimation in cryo-EM tomograms, micrographs and STA/SPA maps
 
 # Usage
-Instructions and tutorial [Usage](Instructions.md)
+Instructions and tutorial: [Usage](Instructions.md)
 
 
 # Installation for Linux
 
-## Cloning
+## Downloading/Cloning
 ```https://github.com/DavidKart/RESOLVE.git``` <br>
 ```cd RESOLVE```
 
