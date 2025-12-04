@@ -8,7 +8,7 @@ Instructions and tutorial: [Usage](Instructions.md)
 
 ### Downloading/Cloning
 ```bash
-git clone https://github.com/Dakat/RESOLVE.git
+git clone https://github.com/DavidKart/RESOLVE.git
 cd RESOLVE
 ```
 
