@@ -1,24 +1,26 @@
 # RESOLVE
-Tool for resolution estimation in cryo-EM tomograms, micrographs and STA/SPA maps
+Tool for resolution estimation in cryo-EM tomograms, micrographs and STA/SPA maps.
 
-# Usage
+## Usage
 Instructions and tutorial: [Usage](Instructions.md)
 
+## Installation for Linux
 
-# Installation for Linux
+### Downloading/Cloning
+```bash
+git clone https://github.com/Dakat/RESOLVE.git
+cd RESOLVE
+```
 
-## Downloading/Cloning
-```https://github.com/DavidKart/RESOLVE.git``` <br>
-```cd RESOLVE```
+### Creating python environment
 
-## Creating python environment
+#### Use the provided yaml
+```bash
+conda env create -f environment_minimal.yml
+conda activate RESOLVE_env
+```
 
-### Use the provided yaml
-```conda env create -f environment_minimal.yml``` <br>
-```conda activate RESOLVE_env```
-
-
-### Or install libraries manually:
+#### Or install libraries manually:
   - python=3.10
   - numba=0.62
   - numba-cuda=0.22
@@ -37,5 +39,7 @@ Instructions and tutorial: [Usage](Instructions.md)
       - seaborn
       - tifffile
 
-## Verifying numba cuda
-```python -c "from numba import cuda; print('CUDA available:', cuda.is_available()); print('GPUs:', [gpu.name for gpu in cuda.gpus] if cuda.is_available() else 'None')"```
+### Verifying numba cuda
+```bash
+python -c "from numba import cuda; print('CUDA available:', cuda.is_available()); print('GPUs:', [gpu.name for gpu in cuda.gpus] if cuda.is_available() else 'None')"
+```
