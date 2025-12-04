@@ -6,7 +6,7 @@ import multiprocessing as mp
 import datetime
 import pyfftw
 import gc
-import scripts.utils_resolve_phaseForNoise as utils_newRef
+import scripts.utils_resolve as utils_resolve
 import datetime
 
 def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gpu_settings, run_fast, signal_mask_input, mask_measure, outputDir, inputDir):
@@ -53,7 +53,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 	numCores = cpu_threads
 	printDebugging = False
 	boxValue = "max" # Set a fixed value or "max". (fixed value in case memory unexpectedly small)
-	filterChoice = utils_newRef.hypTan # Define filter
+	filterChoice = utils_resolve.hypTan # Define filter
 	spacingFilter = 0.05 # Size of shells
 	falloff = 1.5 # falloff for hypTan bandpass filter
 
@@ -81,7 +81,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		gpu_ids = [0]
 		print("running in CPU mode")	
 	if (runOnGPU >= 1): # Correct filter function (input gpu function if GPU is used)
-		filterChoice = getattr(utils_newRef, filterChoice.__name__+"_cuda") 
+		filterChoice = getattr(utils_resolve, filterChoice.__name__+"_cuda") 
 	
 	# Configuring batch mode for running on datasets - running on any number of files in the given directory
 	it_loops = 1
@@ -198,7 +198,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 
 		# Get windows (radii) and shells
 		sizeVol = 100
-		shells_dict = utils_newRef.calculateShells(sizeVol, apix, lowRes, spacingFilter, accuracy_steps)
+		shells_dict = utils_resolve.calculateShells(sizeVol, apix, lowRes, spacingFilter, accuracy_steps)
 		shells = [(np.array(v)) for k,v in shells_dict.items()]
 		resolutions = [(k) for k,v in shells_dict.items()]
 		shellStr = ""
@@ -206,10 +206,10 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			shellStr += str(np.round(1/i[0],3)) + "-" + str(np.round(1/i[1],3)) + "; "
 
 		# Get windows and box sizes from precalculated empirical simulations. Print out parameters used.
-		windows = utils_newRef.getWindowsEmpirical_new(np.array(resolutions)*apix, dimension_windows)
+		windows = utils_resolve.getWindowsEmpirical_new(np.array(resolutions)*apix, dimension_windows)
 		maxWindow_half = [int(np.ceil(np.max(windows)))+1, int(np.ceil(np.max(windows)))+1, int(np.ceil(np.max(windows)))+1]
 		maxWindow_half = maxWindow_half[:dimension]
-		boxSize, corrected_box_size = utils_newRef.calculateEfficientBoxSize(sizeMap, boxValue, maxWindow_half, runOnGPU, dimension, collapseWindow_i) # box size
+		boxSize, corrected_box_size = utils_resolve.calculateEfficientBoxSize(sizeMap, boxValue, maxWindow_half, runOnGPU, dimension, collapseWindow_i) # box size
 		blueprint_box = np.zeros(boxSize, dtype=np.float32) 
 		localResMap_blueprint = np.zeros([len(range(0, corrected_box_size[i], stepSize[i])) for i in range(len(corrected_box_size))], dtype=np.float16)
 		localResMap_out = np.zeros([len(range(0, sizeMap[i], stepSize[i])) for i in range(len(sizeMap))], dtype=np.float32)  
@@ -223,9 +223,9 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
  
 		# Get frequency maps (for later bandpass filtering)
 		if collapseWindow_i:
-			freqMap = utils_newRef.calculate_frequency_map(boxSize[1:])/float(apix)
+			freqMap = utils_resolve.calculate_frequency_map(boxSize[1:])/float(apix)
 		else:
-			freqMap = utils_newRef.calculate_frequency_map(boxSize)/float(apix)
+			freqMap = utils_resolve.calculate_frequency_map(boxSize)/float(apix)
 
 
 		# Old functionality, previously serving as a backup in case maps are too large to fit in memory. Unrelevant, only kept for potential later use cases.
@@ -303,8 +303,8 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		partial_locaRes = None
 		partial_fillMap = None
 		if runOnGPU < 1:
-			partial_locaRes = functools.partial(utils_newRef.localResolutions, corrected_box_size=corrected_box_size, maxWindow_half=maxWindow_half, stepSize=stepSize)
-		partial_fillMap = functools.partial(utils_newRef.fillMapMultiThread, p_cutoff=p_cutoff, test2=test2, dimension=dimension)
+			partial_locaRes = functools.partial(utils_resolve.localResolutions, corrected_box_size=corrected_box_size, maxWindow_half=maxWindow_half, stepSize=stepSize)
+		partial_fillMap = functools.partial(utils_resolve.fillMapMultiThread, p_cutoff=p_cutoff, test2=test2, dimension=dimension)
 
 
 		# Outdated, ignore. Prepare boxes if input is too large for memory
@@ -341,7 +341,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		# Correlation calculations
 		afterinit3 = datetime.datetime.now()
 		# print("init 3 taking " + str(afterinit3-afterFFTInit) + "\n")
-		localResMap_out, actualRes_global_new, ratioSignal =  utils_newRef.iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimension, windows, window_size_i, blueprint_box, sizeMap_padded, boxSize, resolutions, filterChoice, apix, slices, padded_inputMap_1, padded_inputMap_2, res_obj, res_obj_inv, freqMap, shells, falloff, gpu_ids, runOnGPU, it_randomMaps, partial_locaRes, printDebugging, corrected_box_size, maxWindow_half, stepSize, referenceDistSize, numCores, localResMap_size, p_cutoff, test2, lowRes, partial_fillMap, signalMaskPadded, mask_measure, config, outputDir, runOnAveragedMap, preAddToName)
+		localResMap_out, actualRes_global_new, ratioSignal =  utils_resolve.iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimension, windows, window_size_i, blueprint_box, sizeMap_padded, boxSize, resolutions, filterChoice, apix, slices, padded_inputMap_1, padded_inputMap_2, res_obj, res_obj_inv, freqMap, shells, falloff, gpu_ids, runOnGPU, it_randomMaps, partial_locaRes, printDebugging, corrected_box_size, maxWindow_half, stepSize, referenceDistSize, numCores, localResMap_size, p_cutoff, test2, lowRes, partial_fillMap, signalMaskPadded, mask_measure, config, outputDir, runOnAveragedMap, preAddToName)
 		resGlobArray.append(actualRes_global_new)
 		ratioSignalArray.append(ratioSignal)
 		nameArray.append(preAddToName)
@@ -359,13 +359,13 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			if collapseWindow_i: # For tilt-series
 				localResMap = []
 				for i in range(localResMap_out.shape[0]):
-					localResMap.append(utils_newRef.interpolate_with_zoom(localResMap_out[i], sizeMap[1:], stepSize, lowRes))
+					localResMap.append(utils_resolve.interpolate_with_zoom(localResMap_out[i], sizeMap[1:], stepSize, lowRes))
 				localResMap = np.array(localResMap)
 			else:
 				if (np.prod(sizeMap)<(700**3)): 
-					localResMap = utils_newRef.interpolate_with_zoom(localResMap_out, sizeMap, stepSize, lowRes)
+					localResMap = utils_resolve.interpolate_with_zoom(localResMap_out, sizeMap, stepSize, lowRes)
 				else: # for very large maps, interpolating chunk-wise.
-					localResMap = utils_newRef.interpolate_chunks(localResMap_out, sizeMap, dimension, iterate_boxSize, localResMap_size, localResMap_out.shape, stepSize, [500,500,500])
+					localResMap = utils_resolve.interpolate_chunks(localResMap_out, sizeMap, dimension, iterate_boxSize, localResMap_size, localResMap_out.shape, stepSize, [500,500,500])
 		else:
 			localResMap = np.copy(localResMap_out)    
 		# print("interpolation took " + str(datetime.datetime.now()-start_interpolate) + "\n")

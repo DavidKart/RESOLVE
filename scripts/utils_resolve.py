@@ -835,8 +835,6 @@ def hypTan_cuda(apix, fftmap, res_obj_inv, cuda_distance, low_freq, high_freq, f
 	 
 
 		if separateXSlices and (len(fftmap.shape) == 3):
-			# print(cuda_fftmap[0].copy_to_host())
-			# print("go for divByX cuda")
 			cuda_multiply3D_divByX[blockspergrid, threadsperblock](cuda_product, cuda_fftmap, cuda_bandpassIn, cuda_shapeMap)
 		else:
 			if len(fftmap.shape) == 3:
@@ -903,10 +901,7 @@ def hypTan_cuda(apix, fftmap, res_obj_inv, cuda_distance, low_freq, high_freq, f
 		cuda_bandpass_filter2D[blockspergrid, threadsperblock](cuda_bandpass, cuda_distance, low_freq, high_freq, low_fall_off, high_fall_off, cuda_shapeMap)
    
 	stream.synchronize()
-	# bandpass_filter = cuda_bandpass.copy_to_host(stream=stream)
-	# cuda.current_context().reset()
-	# bandpass_filter = bandpass_filter/np.max(bandpass_filter)
- 
+
  
 	@cuda.jit
 	def cuda_bandpass_normalize3D(cuda_bandpass, max_val):
@@ -947,8 +942,6 @@ def hypTan(apix, fftmap, res_obj_inv, distance, high_freq, low_freq, falloff, ru
 	
 		if separateXSlices:
 			returnThis = []
-			# print("go for divByX no cuda")
-			# print(fftmap[0])
 			for x in range(fftmap.shape[0]):
 				output = np.multiply(fftmap[x], bandpassIn)
 				returnThis.append(np.copy(res_obj_inv(output)))
@@ -970,151 +963,8 @@ def hypTan(apix, fftmap, res_obj_inv, distance, high_freq, low_freq, falloff, ru
 	if analyze: 
 		return bandpass_filter
 
-	# if len(fftmap.shape) == 2:
-	# 	fftmap[0,0] = 0
-	# else:
-	# 	fftmap[0,0,0] = 0		
 	x = np.float32(np.copy(res_obj_inv(np.multiply(fftmap,bandpass_filter))))
 	return x
-
-
-def runLocal_cuda(corrBoxSize, maxWindow_half, window_size, window_size_i, paddedHalfMap1, paddedHalfMap2, 
-							stepSize, permuted_map, bool_array, start_gpu, gpu_id, result_array_gpu, dimsMin, dimsMax):
-	"""
-	Local correlation measurements for GPU.
-	"""		
-
-	from numba import cuda
-	cuda.select_device(gpu_id)
-	stream = cuda.stream()
-
- 
-	if len(paddedHalfMap1.shape) == 3:
-		threadsperblock = (8, 8, 8)
-		blockspergrid_x = (paddedHalfMap1.shape[0] + threadsperblock[0] - 1) // threadsperblock[0]
-		blockspergrid_y = (paddedHalfMap1.shape[1] + threadsperblock[1] - 1) // threadsperblock[1]
-		blockspergrid_z = (paddedHalfMap1.shape[2] + threadsperblock[2] - 1) // threadsperblock[2]
-		blockspergrid = (blockspergrid_x, blockspergrid_y, blockspergrid_z)
-	if len(paddedHalfMap1.shape) == 2:
-		threadsperblock = (8, 8)
-		blockspergrid_x = (paddedHalfMap1.shape[0] + threadsperblock[0] - 1) // threadsperblock[0]
-		blockspergrid_y = (paddedHalfMap1.shape[1] + threadsperblock[1] - 1) // threadsperblock[1]
-		blockspergrid = (blockspergrid_x, blockspergrid_y)
-	 
-	
-	cuda_resultArray = cuda.to_device(result_array_gpu, stream=stream)
-	cuda_paddedHalfMap1 = cuda.to_device(paddedHalfMap1, stream=stream)
-	cuda_paddedHalfMap2 = cuda.to_device(paddedHalfMap2, stream=stream)
-	cuda_permuted_map = cuda.to_device(permuted_map, stream=stream)
-	cuda_bool_array = cuda.to_device(bool_array, stream=stream)
-	cudaBoolArrayShape = cuda.to_device(bool_array.shape, stream=stream)
-	cudaMaxWindowHalf = cuda.to_device(maxWindow_half, stream=stream)
-	cudastepSize = cuda.to_device(stepSize, stream = stream)
-	permutedMapLen = len(permuted_map)
-	dim = len(paddedHalfMap1.shape)
-
-	# print("cuda preparation took: " + str(datetime.datetime.now() - preparing))
-	# decoration = datetime.datetime.now()
-
-	@cuda.jit
-	def run_cuda_2d(cuda_resultArray, window_size, cuda_paddedHalfMap1, cuda_paddedHalfMap2, cuda_bool_array, cudaMaxWindowHalf, cudastepSize, cuda_permuted_map, cudaBoolArrayShape, permutedMapLen, dimsMin, dimsMax):
-		##run for 2d
-		i, j = cuda.grid(2)
-		if ((i >= cudaMaxWindowHalf[0]) and (i < cudaMaxWindowHalf[0] + corrBoxSize[0])) and \
-			((j>= cudaMaxWindowHalf[1]) and (j < cudaMaxWindowHalf[1] + corrBoxSize[1])) and \
-				((i-cudaMaxWindowHalf[0]) % cudastepSize[0] == 0) and ((j-cudaMaxWindowHalf[1]) % cudastepSize[1] == 0):  
-				window_halfmap1 = cuda_paddedHalfMap1[i - window_size: i + window_size +1,
-							j - window_size: j + window_size +1]
-
-				window_halfmap2 = cuda_paddedHalfMap2[i - window_size: i + window_size +1,
-							j - window_size: j + window_size +1]
-
-				FSCnominator = 0
-				sum1 = 0
-				sum2 = 0
-				for l in range(cudaBoolArrayShape[0]):
-					for m in range(cudaBoolArrayShape[1]):
-						if cuda_bool_array[l,m] == 1:
-							FSCnominator += window_halfmap1[l,m] * window_halfmap2[l,m]
-							sum1 += window_halfmap1[l,m]**2
-							sum2 += window_halfmap2[l,m]**2
-
-
-				FSCdenominator = ((sum1)**0.5) * ((sum2)**0.5)
-				if (FSCdenominator == 0):
-					FSC = 0.0
-				else:
-					FSC = FSCnominator/FSCdenominator
-				
-				countP = 0
-				for l in cuda_permuted_map:
-					if l>FSC: countP += 1
-
-				iInd = int((i-cudaMaxWindowHalf[0])/cudastepSize[0])
-				jInd = int((j-cudaMaxWindowHalf[1])/cudastepSize[1])
-
-				cuda_resultArray[iInd][jInd] = (countP/permutedMapLen)
-				# cuda_resultArray[0][iInd][jInd] = (countP/permutedMapLen)
-				# cuda_resultArray[1][iInd][jInd] = FSC
-	
-	@cuda.jit
-	def run_cuda_3d(cuda_resultArray, window_size, window_size_i, cuda_paddedHalfMap1, cuda_paddedHalfMap2, cuda_bool_array, cudaMaxWindowHalf, cudastepSize, cuda_permuted_map, cudaBoolArrayShape, permutedMapLen, dimsMin, dimsMax):
-		i, j, k = cuda.grid(3)
-		if ((i >= cudaMaxWindowHalf[0]) and (i < cudaMaxWindowHalf[0] + corrBoxSize[0])) and \
-			((j>= cudaMaxWindowHalf[1]) and (j < cudaMaxWindowHalf[1] + corrBoxSize[1])) and \
-				((k>= cudaMaxWindowHalf[2]) and (k < cudaMaxWindowHalf[2] + corrBoxSize[2])) and \
-					((i-cudaMaxWindowHalf[0]) % cudastepSize[0] == 0) and ((j-cudaMaxWindowHalf[1]) % cudastepSize[1] == 0) and ((k-cudaMaxWindowHalf[2]) % cudastepSize[2] == 0):
-		
-					window_halfmap1 = cuda_paddedHalfMap1[i - window_size_i: i + window_size_i +1,
-								j - window_size: j + window_size +1,
-								k - window_size: k + window_size +1]
-
-					window_halfmap2 = cuda_paddedHalfMap2[i - window_size_i: i + window_size_i +1,
-								j - window_size: j + window_size +1,
-								k - window_size: k + window_size +1]
-
-					FSCnominator = 0
-					sum1 = 0
-					sum2 = 0
-					for l in range(cudaBoolArrayShape[0]):
-						for m in range(cudaBoolArrayShape[1]):
-							for n in range(cudaBoolArrayShape[2]):
-								if cuda_bool_array[l,m,n] == 1:
-									FSCnominator += window_halfmap1[l,m,n] * window_halfmap2[l,m,n]
-									sum1 += window_halfmap1[l,m,n]**2
-									sum2 += window_halfmap2[l,m,n]**2
-
-
-					FSCdenominator = ((sum1)**0.5) * ((sum2)**0.5)
-
-				
-					if (FSCdenominator == 0):
-						FSC = 0.0
-					else:
-						FSC = FSCnominator/FSCdenominator
-					
-		
-					countP = 0
-					for l in cuda_permuted_map:
-						if l>FSC: countP += 1
-			
-		
-					iInd = int((i-cudaMaxWindowHalf[0])/cudastepSize[0])
-					jInd = int((j-cudaMaxWindowHalf[1])/cudastepSize[1])
-					kInd = int((k-cudaMaxWindowHalf[2])/cudastepSize[2])
-
-
-					cuda_resultArray[iInd][jInd][kInd] = (countP/permutedMapLen)
-
-
-	if dim == 2:
-		run_cuda_2d[blockspergrid, threadsperblock](cuda_resultArray, window_size, cuda_paddedHalfMap1, cuda_paddedHalfMap2, cuda_bool_array, cudaMaxWindowHalf, cudastepSize, cuda_permuted_map, cudaBoolArrayShape, permutedMapLen, dimsMin, dimsMax)
-	if dim == 3:
-		run_cuda_3d[blockspergrid, threadsperblock](cuda_resultArray, window_size, window_size_i, cuda_paddedHalfMap1, cuda_paddedHalfMap2, cuda_bool_array, cudaMaxWindowHalf, cudastepSize, cuda_permuted_map, cudaBoolArrayShape, permutedMapLen, dimsMin, dimsMax)
-
-
-	stream.synchronize()
-	cuda_resultArray.copy_to_host(result_array_gpu, stream = stream)
 
 
 def runLocal_cuda_optimized(corrBoxSize, maxWindow_half, window_size, window_size_i, paddedHalfMap1, paddedHalfMap2, 
