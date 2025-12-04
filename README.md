@@ -14,6 +14,8 @@ cd RESOLVE
 
 ### Creating python environment
 
+We recommend using Miniforge to avoid licensing issues. 
+
 #### Option 1: Use the provided environment file (recommended)
 ```bash
 conda env create -f environment_minimal.yml
