@@ -8,7 +8,7 @@ Instructions and tutorial: [Usage](Instructions.md)
 
 ### Downloading/Cloning
 ```bash
-git clone https://github.com/Dakat/RESOLVE.git
+git clone https://github.com/DavidKart/RESOLVE.git
 cd RESOLVE
 ```
 
@@ -18,7 +18,7 @@ We recommend using Miniforge to avoid licensing issues.
 
 #### Option 1: Use the provided environment file (recommended)
 ```bash
-conda env create -f environment_minimal.yml
+conda env create -f RESOLVE_environment.yml
 conda activate RESOLVE_env
 ```
 

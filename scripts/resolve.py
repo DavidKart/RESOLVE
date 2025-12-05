@@ -14,8 +14,6 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		os.makedirs(outputDir)
   
 	# Some configurations for the different input types
-	if run_fast:
-		accuracy_steps = 2
 	if config == "Refined-Maps":
 		preAddToName = ""
 		runOnAveragedMap = True # SPA/STA outputs (True) or tomograms/micrographs/tilt-series (False)
@@ -56,7 +54,8 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 	filterChoice = utils_resolve.hypTan # Define filter
 	spacingFilter = 0.05 # Size of shells
 	falloff = 1.5 # falloff for hypTan bandpass filter
-
+	if run_fast:
+			accuracy_steps = 2
 	# Configurations for running on GPU
 	gpu_ids = []
 	if gpu_enabled:
@@ -112,11 +111,11 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 
 		# Naming file
 		preAddToName = odd_input.split("/")[-1][:-4] + "_" + config + "_locRes"  
-		print("CHECK IF FILE ALREADY PROCESSED. IF SO, SKIP")
+		# print("CHECK IF FILE ALREADY PROCESSED. IF SO, SKIP")
 		from pathlib import Path
 		outputFilename_LocRes = os.path.join(outputDir, preAddToName + ".mrc")
 		if Path(outputFilename_LocRes).exists():
-			print(outputFilename_LocRes + " already exists. skip!")
+			print(outputFilename_LocRes + " already exists. This file is processed already. For reprocessing, please delete output file or define new output directory. SKIP!\n")
 			continue
 
 		# Initializations and reading data
