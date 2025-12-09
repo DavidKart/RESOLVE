@@ -23,7 +23,7 @@ jobs:
           import urllib.request
           import json
           import os
-          from datetime import datetime
+          from datetime import datetime, timezone
           
           # Get repository info from environment
           owner = os.environ['REPO_OWNER']
@@ -38,8 +38,8 @@ jobs:
               f'https://api.github.com/repos/{owner}/{repo}/traffic/popular/paths'
           ]
           
-          timestamp = datetime.utcnow().isoformat()
-          
+          timestamp = datetime.now(timezone.utc).isoformat()
+                    
           # Collect data from each endpoint
           all_data = {'timestamp': timestamp, 'repository': f'{owner}/{repo}'}
           
@@ -57,7 +57,7 @@ jobs:
                   print(f"Error fetching {endpoint}: {e}")
           
           # Save to temporary file
-          date_str = datetime.utcnow().strftime('%Y-%m-%d')
+          date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
           os.makedirs('temp_data', exist_ok=True)
           filename = f'temp_data/{repo}_{date_str}.json'
           
