@@ -304,7 +304,7 @@ def iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimens
 
   
 		ratioSignal = np.round(np.sum(actualVAllues)/np.sum(overallValues), 2)
-		pVals_qual, actualRes_global_new = getFittedResolution_new(p_cutoff, resList_glob, pValListGlobal, lowResRounded)
+		pVals_qual, actualRes_global_new = getFittedResolution(p_cutoff, resList_glob, pValListGlobal, lowResRounded)
 		if collapseWindow_i or (dimension == 3): 
 			plot_heatmap_pvalue(merged_dictsTiltSeries, os.path.join(outputDir, preName + "_pValuePlot"), 0, 0.05, "Slices", "Resolution", "p-Value", 7, 4, "svg", actualRes_global_new, ratioSignal)
 
@@ -333,7 +333,7 @@ def combine_concat(dict_list):
 	return result
 
 
-def getFittedResolution_new(p_cutoff, x_list, y_list, lowResRounded, num_samples=100):
+def getFittedResolution(p_cutoff, x_list, y_list, lowResRounded, num_samples=100):
 	"""   
     Interpolates the Fourier Shell Correlation (FSC) curve and applies 
     Benjamini-Yekutieli FDR correction to determine the resolution cutoff 
@@ -518,7 +518,7 @@ def plot_heatmap_pvalue(data_dict, output_path, minV, maxV, xAxisLabel, yAxisLab
 
 
 
-def getWindowsEmpirical_new(input_values, dim):
+def getWindowsEmpirical(input_values, dim):
 	"""
 	Includes the shell-dependent window radii for 2D and 3D measurements, calculated from our simulations.
 	"""
@@ -967,7 +967,7 @@ def hypTan(apix, fftmap, res_obj_inv, distance, high_freq, low_freq, falloff, ru
 	return x
 
 
-def runLocal_cuda_optimized(corrBoxSize, maxWindow_half, window_size, window_size_i, paddedHalfMap1, paddedHalfMap2, 
+def runLocal_cuda(corrBoxSize, maxWindow_half, window_size, window_size_i, paddedHalfMap1, paddedHalfMap2, 
 							stepSize, permuted_map, bool_array, start_gpu, gpu_id, result_array_gpu, dimsMin, dimsMax):
 	"""
 	Local correlation measurements for GPU - optimized.
@@ -1016,7 +1016,7 @@ def runLocal_cuda_optimized(corrBoxSize, maxWindow_half, window_size, window_siz
 	permutedMapLen = len(permuted_map)
 	
 	@cuda.jit
-	def run_cuda_2d_optimized(cuda_resultArray, window_size, cuda_paddedHalfMap1, cuda_paddedHalfMap2, 
+	def run_cuda_2d(cuda_resultArray, window_size, cuda_paddedHalfMap1, cuda_paddedHalfMap2, 
 							  cuda_bool_indices, num_valid_points, cuda_maxWindow_half, cuda_stepSize, 
 							  cuda_permuted_map, permutedMapLen, cuda_corrBoxSize):
 		
@@ -1073,7 +1073,7 @@ def runLocal_cuda_optimized(corrBoxSize, maxWindow_half, window_size, window_siz
 		cuda_resultArray[iInd, jInd] = countP / float(permutedMapLen)
 	
 	@cuda.jit
-	def run_cuda_3d_optimized(cuda_resultArray, window_size, window_size_i, cuda_paddedHalfMap1, cuda_paddedHalfMap2, 
+	def run_cuda_3d(cuda_resultArray, window_size, window_size_i, cuda_paddedHalfMap1, cuda_paddedHalfMap2, 
 							  cuda_bool_indices, num_valid_points, cuda_maxWindow_half, cuda_stepSize, 
 							  cuda_permuted_map, permutedMapLen, cuda_corrBoxSize):
 		
@@ -1138,13 +1138,13 @@ def runLocal_cuda_optimized(corrBoxSize, maxWindow_half, window_size, window_siz
 	
 	# Launch appropriate kernel
 	if dim == 2:
-		run_cuda_2d_optimized[blockspergrid, threadsperblock](
+		run_cuda_2d[blockspergrid, threadsperblock](
 			cuda_resultArray, window_size, cuda_paddedHalfMap1, cuda_paddedHalfMap2,
 			cuda_bool_indices, num_valid_points, cuda_maxWindow_half, cuda_stepSize,
 			cuda_permuted_map, permutedMapLen, cuda_corrBoxSize
 		)
 	else:
-		run_cuda_3d_optimized[blockspergrid, threadsperblock](
+		run_cuda_3d[blockspergrid, threadsperblock](
 			cuda_resultArray, window_size, window_size_i, cuda_paddedHalfMap1, cuda_paddedHalfMap2,
 			cuda_bool_indices, num_valid_points, cuda_maxWindow_half, cuda_stepSize,
 			cuda_permuted_map, permutedMapLen, cuda_corrBoxSize
@@ -1518,7 +1518,7 @@ def localResolutionsGPU(collapseWindow_i, sample1_filtered, sample2_filtered, pe
 			sample2_filtered_clipped = sample2_filtered[minClipMap-maxWindow_half[0]:maxClipMap+maxWindow_half[0]]
 			corrected_box_size_corrected = np.copy(corrected_box_size)
 			corrected_box_size_corrected[0] = maxClipMap - minClipMap
-			futures.append(executor.submit(runLocal_cuda_optimized, corrected_box_size_corrected, maxWindow_half, windowSize, window_size_i, sample1_filtered_clipped, sample2_filtered_clipped,
+			futures.append(executor.submit(runLocal_cuda, corrected_box_size_corrected, maxWindow_half, windowSize, window_size_i, sample1_filtered_clipped, sample2_filtered_clipped,
 					stepSize, permuted_map, bool_array, start_gpu, gpu_ids[gpu_id], results[gpu_id], dimsMin, dimsMax))
 			
 		# Wait for all computations to finish

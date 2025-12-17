@@ -47,7 +47,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 	resMax = 10 # Check shells up to 10*Nyquist 
 	accuracy_steps = 1 # Defines the Fourier-space sampling
 	referenceDistSize = 10000 # Size of reference distribution
-	input_gpuIds = gpu_settings # If left empty, choose by default all. Otherwise, enter ids.
+	input_gpuIds = gpu_settings # If left empty, choose by first two. Otherwise, enter ids.
 	numCores = cpu_threads
 	printDebugging = False
 	boxValue = "max" # Set a fixed value or "max". (fixed value in case memory unexpectedly small)
@@ -63,14 +63,19 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			from numba import cuda
 			runOnGPU = 1
 			if len(input_gpuIds) == 0:
-				gpu_ids = [gpu.id for gpu in cuda.gpus]
+				gpu_ids = [gpu.id for gpu in cuda.gpus][:2]
 			else:
 				gpu_ids = list(np.array(input_gpuIds.split(",")).astype(int))
 				for check_gpu in gpu_ids:
 					if check_gpu not in [gpu.id for gpu in cuda.gpus]:
 						print("Cannot find GPU. Exit.")
 						return
-			print("running in GPU mode with numba using gpu(s): " + " ".join(np.array(gpu_ids).astype(str)))
+			if len(gpu_ids) > 2:
+				print("Warning: Using more than 2 GPUs is not recommended, as it may slow down processing.")
+			if config == "Micrographs":
+				print("Warning: GPU usage is not recommended for micrographs, as it will likely slow down processing.")
+
+			print("running in GPU mode with GPU(s): " + " ".join(np.array(gpu_ids).astype(str)))
 		except: 
 			runOnGPU = 0
 			gpu_ids = [0]
@@ -115,7 +120,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		from pathlib import Path
 		outputFilename_LocRes = os.path.join(outputDir, preAddToName + ".mrc")
 		if Path(outputFilename_LocRes).exists():
-			print(outputFilename_LocRes + " already exists. This file is processed already. For reprocessing, please delete output file or define new output directory. SKIP!\n")
+			print("Warning: " + outputFilename_LocRes + " already exists. This file is processed already. For reprocessing, please delete output file or define new output directory. SKIP!\n")
 			continue
 
 		# Initializations and reading data
@@ -123,9 +128,10 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		halfMap2 = mrcfile.open(even_input, mode='r')
 		# afterReading = datetime.datetime.now()
 		# print("reading taking " + str(afterReading-start_total) + "\n")
-		print("using inputs: ")
+		print("\nusing input half-maps: ")
 		print(even_input)
 		print(odd_input)
+		print("")
 		halfMap1Data = halfMap1.data
 		halfMap2Data = halfMap2.data
 		sizeMap = halfMap1Data.shape
@@ -171,18 +177,19 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			print("using signal mask for median estimate: " + str(signal_mask_input))
 
 		# Reading pixel size
+		print("Input configurations_____________")
 		if apix is None:
-			apix = float((halfMap1.voxel_size).x)
-			apix_y = float((halfMap1.voxel_size).x)
+			apix = np.round(float((halfMap1.voxel_size).x),2)
+			apix_y = np.round(float((halfMap1.voxel_size).y),2)
 			if dimension == 2:
-				print("pixel size read from header (x,y) is " + str(apix) + " " + str(apix_y))
+				print("pixel size read from header (x,y): " + str(apix) + " " + str(apix_y))
 			if dimension == 3:
-				apix_z = float((halfMap1.voxel_size).z)
-				print("pixel size read from header (x,y,z) is " + str(apix) + " " + str(apix_y) + " " + str(apix_z) + ". Z-value may differ for Tilt-series.")
+				apix_z = np.round(float((halfMap1.voxel_size).z),2)
+				print("pixel size read from header (x,y,z): " + str(apix) + " " + str(apix_y) + " " + str(apix_z)) # Z-value may differ for Tilt-series
 		lowRes = resMax*apix # Lowest resolution 
 		lowResMax = 1/(np.fft.rfftfreq(np.min(sizeMap))[1]/apix)
 		lowRes = np.min([lowRes, lowResMax])
-		print("lowest resolution to consider: " + str(lowRes) + "\n")
+		print("lowest resolution to consider (10*apix): " + str(np.round(lowRes,2)))
 		del halfMap1 # Cleaning
 		del halfMap2 # Cleaning
   
@@ -193,7 +200,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			stepSize[0] = 1 # Collapse z to 1. Not that for numpy arrays, x and z are swapped (z,y,x instead of x,y,z)
 		else:
 			dimension_windows = dimension
-		print("using a step size of " + str(" ".join(np.array(stepSize[::-1]).astype(str)))) # Adjust x-z swap
+		print("using step size: " + str(" ".join(np.array(stepSize[::-1]).astype(str)))) # Adjust x-z swap
 
 		# Get windows (radii) and shells
 		sizeVol = 100
@@ -205,7 +212,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			shellStr += str(np.round(1/i[0],3)) + "-" + str(np.round(1/i[1],3)) + "; "
 
 		# Get windows and box sizes from precalculated empirical simulations. Print out parameters used.
-		windows = utils_resolve.getWindowsEmpirical_new(np.array(resolutions)*apix, dimension_windows)
+		windows = utils_resolve.getWindowsEmpirical(np.array(resolutions)*apix, dimension_windows)
 		maxWindow_half = [int(np.ceil(np.max(windows)))+1, int(np.ceil(np.max(windows)))+1, int(np.ceil(np.max(windows)))+1]
 		maxWindow_half = maxWindow_half[:dimension]
 		boxSize, corrected_box_size = utils_resolve.calculateEfficientBoxSize(sizeMap, boxValue, maxWindow_half, runOnGPU, dimension, collapseWindow_i) # box size
@@ -215,8 +222,8 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		localResMap_out.fill(lowRes)
 		localResMap_size = localResMap_blueprint.shape
 		# print("init 1 taking " + str(afterInit1-start_total) + "\n")
-		print("using window radii: " + " ".join(map(str,np.round(windows,3))))
-		print("to calculate resolutions: " + " ".join(map(str,np.round(1/np.array(resolutions),3))))
+		print("using window radii [pix]: " + " ".join(map(str,np.round(windows,1))))
+		print("to measure resolutions [Å]: " + " ".join(map(str,np.round(1/np.array(resolutions),2))))
 		# print("using shells: " + shellStr)
 		print("")
  
@@ -384,7 +391,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			localResMapMRC.voxel_size = apix
 		localResMapMRC.close()
 		end_total = datetime.datetime.now()
-		print("IN TOTAL: " + str(end_total-start_total))
+		print("IN TOTAL: " + str(end_total-start_total) + "\n\n")
 		
   
 		# For 2D calculations (micrographs), also give a 2D image as output.
