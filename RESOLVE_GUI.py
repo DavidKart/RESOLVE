@@ -129,7 +129,7 @@ class ConfigPanel(QWidget):
         help_button_gpu = QToolButton()
         help_button_gpu.setText("?")
         help_button_gpu.setFixedWidth(20)
-        help_button_gpu.setToolTip("Check to enable GPU. List GPUs to use, comma separated. By default, all available GPUs are used.")
+        help_button_gpu.setToolTip("Check to enable GPU. List GPUs to use, comma separated. By default, the first two available GPUs are used.")
         gpu_layout.addWidget(help_button_gpu)
 
         self.gpu_checkbox.stateChanged.connect(self.toggle_gpu_input)
