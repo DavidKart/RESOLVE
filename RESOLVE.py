@@ -14,7 +14,7 @@ def main():
     parser.add_argument("--outputDir", required=True, help="Output directory.")
     parser.add_argument("--cpu_threads", type=int, default=4, help="Number of CPU threads (default: 4).")
     parser.add_argument("--gpu_enabled", action="store_true", help="Enable GPU usage. Not recommended for micrographs.")
-    parser.add_argument("--gpu_settings", default="", help="GPU settings (only used if --gpu_enabled is set). List GPUs to use, comma separated. By default, all available GPUs are used.")
+    parser.add_argument("--gpu_settings", default="", help="GPU settings (only used if --gpu_enabled is set). List GPUs to use, comma separated. By default, the first two available GPUs are used.")
     parser.add_argument("--fast", action="store_true", help="Lower sampling in Fourier space and real space. Faster, needs less memory.")
 
     # Input mask & measurement mode
