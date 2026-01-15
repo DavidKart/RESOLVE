@@ -116,7 +116,6 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 
 		# Naming file
 		preAddToName = odd_input.split("/")[-1][:-4] + "_" + config + "_locRes"  
-		# print("CHECK IF FILE ALREADY PROCESSED. IF SO, SKIP")
 		from pathlib import Path
 		outputFilename_LocRes = os.path.join(outputDir, preAddToName + ".mrc")
 		if Path(outputFilename_LocRes).exists():
@@ -126,8 +125,6 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		# Initializations and reading data
 		halfMap1 = mrcfile.open(odd_input, mode='r')
 		halfMap2 = mrcfile.open(even_input, mode='r')
-		# afterReading = datetime.datetime.now()
-		# print("reading taking " + str(afterReading-start_total) + "\n")
 		print("\nusing input half-maps: ")
 		print(even_input)
 		print(odd_input)
@@ -137,7 +134,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		sizeMap = halfMap1Data.shape
 		dimension = len(sizeMap)
 
-		# Some more safety checks
+		# More safety checks
 		if config == "Refined-Maps":
 			if dimension != 3:
 				print("Error: inputs should be 3D")
@@ -221,10 +218,8 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		localResMap_out = np.zeros([len(range(0, sizeMap[i], stepSize[i])) for i in range(len(sizeMap))], dtype=np.float32)  
 		localResMap_out.fill(lowRes)
 		localResMap_size = localResMap_blueprint.shape
-		# print("init 1 taking " + str(afterInit1-start_total) + "\n")
 		print("using window radii [pix]: " + " ".join(map(str,np.round(windows,1))))
 		print("to measure resolutions [Å]: " + " ".join(map(str,np.round(1/np.array(resolutions),2))))
-		# print("using shells: " + shellStr)
 		print("")
  
 		# Get frequency maps (for later bandpass filtering)
@@ -236,10 +231,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 
 		# Old functionality, previously serving as a backup in case maps are too large to fit in memory. Unrelevant, only kept for potential later use cases.
 		iterate_boxSize = (np.ceil(sizeMap/corrected_box_size)).astype(int) # determine iterations for given boxSize minus half max window size
-		overallBoxes = np.prod(iterate_boxSize) # Set to 1 always
-		# print("calculate resolutions for " + str(overallBoxes) + " box(es)")
-		# print("using adjusted box Size " + " ".join(map(str, boxSize)))
-		# afterInit1 = datetime.datetime.now()
+		overallBoxes = np.prod(iterate_boxSize) # Currently always 1
 
 		# Define pyfftw 
 		pyfftwSize = [i for i in boxSize]
@@ -273,10 +265,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			avoid_copy=True,
 			auto_align_input=True,
 			auto_contiguous=True
-		)	
-		afterFFTInit = datetime.datetime.now()
-		# print("init 2 FFT taking " + str(afterFFTInit-afterInit1) + "\n")
- 		
+		)			
   
 		# Padding up to half the correlation calculating window radius with noise for tomograms, micrographs and tilt-series - otherwise, edges will have high resolution
 		# Note that padding up to lowest effecient box size for FFT will still be done with zeros
@@ -345,8 +334,6 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 	
 	
 		# Correlation calculations
-		afterinit3 = datetime.datetime.now()
-		# print("init 3 taking " + str(afterinit3-afterFFTInit) + "\n")
 		localResMap_out, actualRes_global_new, ratioSignal =  utils_resolve.iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimension, windows, window_size_i, blueprint_box, sizeMap_padded, boxSize, resolutions, filterChoice, apix, slices, padded_inputMap_1, padded_inputMap_2, res_obj, res_obj_inv, freqMap, shells, falloff, gpu_ids, runOnGPU, it_randomMaps, partial_locaRes, printDebugging, corrected_box_size, maxWindow_half, stepSize, referenceDistSize, numCores, localResMap_size, p_cutoff, test2, lowRes, partial_fillMap, signalMaskPadded, mask_measure, config, outputDir, runOnAveragedMap, preAddToName)
 		resGlobArray.append(actualRes_global_new)
 		ratioSignalArray.append(ratioSignal)
@@ -354,13 +341,12 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 	
 	
 		# Interpolating
-		# As we never use every pixel/voxel, the grid needs to be interpolated in the end.
+		# The grid needs to be interpolated in the end.
 		localResMap_out = np.array(localResMap_out, dtype=np.float32)
 		del blueprint_box
 		localResMap_out[localResMap_out>lowRes] = lowRes   
 		gc.collect() # Make sure garbage is collected before interpolating to free memory
 		print("interpolating grid")
-		start_interpolate = datetime.datetime.now()
 		if np.max(stepSize) != 1: # This is always the case in this default script
 			if collapseWindow_i: # For tilt-series
 				localResMap = []
@@ -374,10 +360,8 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 					localResMap = utils_resolve.interpolate_chunks(localResMap_out, sizeMap, dimension, iterate_boxSize, localResMap_size, localResMap_out.shape, stepSize, [500,500,500])
 		else:
 			localResMap = np.copy(localResMap_out)    
-		# print("interpolation took " + str(datetime.datetime.now()-start_interpolate) + "\n")
 		del localResMap_out 
 		localResMap[np.isnan(localResMap)] = lowRes
-		# localResMap = np.where(np.isnan(localResMap), lowRes, localResMap) 
 
 
 		# Write output
@@ -394,19 +378,19 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		print("IN TOTAL: " + str(end_total-start_total) + "\n\n")
 		
   
-		# For 2D calculations (micrographs), also give a 2D image as output.
+		# For 2D calculations (micrographs), also save 2D image as output.
 		if dimension==2:
 			import matplotlib.pyplot as plt
-			localResMap = np.flipud(localResMap) #stuff read in numpy from .mrc is axis swapped. This does not matter when saving as .mrc again, but it does here.
+			localResMap = np.flipud(localResMap) # Correct axis swap for coherent visualization.
 			plt.rcParams['font.size'] = 16
-			cmap = plt.get_cmap('bwr') # blue -> red
+			cmap = plt.get_cmap('bwr')
 			fig, ax = plt.subplots() 
 			img = ax.imshow(localResMap, cmap=cmap, vmin=2*apix, vmax=lowRes)
 			cbar = plt.colorbar(img, ax=ax, pad=0.05, aspect=20)
 			cbar.set_label('Resolution') 
 			cbar.ax.invert_yaxis()
 			num_ticks = 6
-			cbar_ticks = np.linspace(2*apix, lowRes, num_ticks)  # Evenly spaced ticks between vmin and vmax
+			cbar_ticks = np.linspace(2*apix, lowRes, num_ticks)
 			cbar.set_ticks(cbar_ticks)
 			cbar.set_ticklabels([f"{tick:.1f}" for tick in cbar_ticks])
 			plt.tight_layout()
@@ -414,7 +398,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			plt.savefig(outputFilename_LocRes[:-3]+"png", bbox_inches='tight', pad_inches=0.05) 
 
 
-	# For batch mode, write summary.tsv file for all the processed files
+	# Batch mode, write summary.tsv file for all the processed files
 	if mode == "batch":
 		with open(os.path.join(outputDir, "summary.tsv"), 'w', encoding='utf-8') as file:
 			# Write header
