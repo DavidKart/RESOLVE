@@ -138,7 +138,7 @@ class ConfigPanel(QWidget):
         # Run fast checkbox
         run_fast_layout = QHBoxLayout()
         self.run_fast_checkbox = QCheckBox("fast analysis")
-        self.run_fast_checkbox.setChecked(True)  # True by default
+        self.run_fast_checkbox.setChecked(False)  # True by default
         run_fast_layout.addWidget(self.run_fast_checkbox)
         
         help_button_fast = QToolButton()
