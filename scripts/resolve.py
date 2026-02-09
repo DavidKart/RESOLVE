@@ -55,7 +55,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 	spacingFilter = 0.05 # Size of shells
 	falloff = 1.5 # falloff for hypTan bandpass filter
 	if run_fast:
-			accuracy_steps = 2
+		accuracy_steps = 2
 	# Configurations for running on GPU
 	gpu_ids = []
 	if gpu_enabled:
