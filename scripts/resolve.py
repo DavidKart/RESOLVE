@@ -187,8 +187,6 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		lowResMax = 1/(np.fft.rfftfreq(np.min(sizeMap))[1]/apix)
 		lowRes = np.min([lowRes, lowResMax])
 		print("lowest resolution to consider (10*apix): " + str(np.round(lowRes,2)))
-		del halfMap1 # Cleaning
-		del halfMap2 # Cleaning
   
 		# This is for tilt-series (collapse window refers to collapsing z-radius to 1)
 		if collapseWindow_i:
@@ -293,7 +291,9 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		else:
 			signalMaskPadded = None
 
-
+		halfMap1.close()
+		halfMap2.close()
+		del halfMap1Data, halfMap2Data
 		# CPU multi-threading processing for running on cpu and in case filling on GPU fails, CPU multi-threading function for filling.
 		partial_locaRes = None
 		partial_fillMap = None
@@ -374,8 +374,6 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 		else:
 			localResMapMRC.voxel_size = apix
 		localResMapMRC.close()
-		end_total = datetime.datetime.now()
-		print("IN TOTAL: " + str(end_total-start_total) + "\n\n")
 		
   
 		# For 2D calculations (micrographs), also save 2D image as output.
@@ -396,7 +394,21 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			plt.tight_layout()
 			plt.axis('off')
 			plt.savefig(outputFilename_LocRes[:-3]+"png", bbox_inches='tight', pad_inches=0.05) 
-
+   
+		if mode == "batch":
+    
+			# Explicit cleanup 
+			del res_obj, res_obj_inv, pyfftwMap, fft_output
+			pyfftw.interfaces.cache.disable()
+			pyfftw.interfaces.cache.enable()
+			del padded_inputMap_1, padded_inputMap_2
+			del localResMap, localResMap_out, freqMap
+			if signalMaskPadded is not None:
+				del signalMaskPadded
+			gc.collect()
+   
+		end_total = datetime.datetime.now()
+		print("IN TOTAL: " + str(end_total-start_total) + "\n\n")
 
 	# Batch mode, write summary.tsv file for all the processed files
 	if mode == "batch":
