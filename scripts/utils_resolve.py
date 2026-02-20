@@ -4,19 +4,18 @@ from scipy.interpolate import RegularGridInterpolator
 import datetime
 import os	
 import json
-from scipy.signal.windows import gaussian
 import math
 from scipy import ndimage
 import ctypes
 
 
-def iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimension, windows, window_size_i, blueprint_box, sizeMap_padded, boxSize, resolutions, filterChoice, apix, slicesPadding, padded_inputMap_1, padded_inputMap_2, res_obj, res_obj_inv, freqMap, shells, falloff, gpu_ids, runOnGPU, it_randomMaps, partial_locaRes, printDebugging, corrected_box_size, maxWindow_half, stepSize, referenceDistSize, numCores, localResMap_size, p_cutoff, test2, lowRes, partial_fillMap, signalMask_padded, mask_measure, config, outputDir, runOnAveragedMap, preName = ""):
+def iterateBoxesWindows(mode, collapseWindow_i, localResMap_out, boxes_iterate, dimension, windows, window_size_i, blueprint_box, sizeMap_padded, boxSize, resolutions, filterChoice, apix, slicesPadding, padded_inputMap_1, padded_inputMap_2, res_obj, res_obj_inv, freqMap, shells, falloff, gpu_ids, runOnGPU, it_randomMaps, partial_locaRes, printDebugging, corrected_box_size, maxWindow_half, stepSize, referenceDistSize, numCores, localResMap_size, p_cutoff, test2, lowRes, partial_fillMap, signalMask_padded, mask_measure, config, outputDir, runOnAveragedMap, preName = ""):
 	"""
 	This is the primary function called for local resolution measurements.
  	Including bandpass filtering, local correlation calculations, q-value calculatoins, 
   	and median (global) resolution calculations.
 	"""	
-
+ 
 	# Some initializing
 	import multiprocessing as mp
 	queue = mp.Queue()
@@ -26,13 +25,13 @@ def iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimens
 	overallValues = []
 	actualVAllues = []
   
-	# This loop is outdated, only kept for potential later usage. There is only one box.
+	# This loop is outdated, previously used if input was too large for memory. There is only one box.
 	for box_it in boxes_iterate: 
 		dictTiltSeries = {}
 		j,k,l = box_it[0], box_it[1], box_it[2]
 		start_box = datetime.datetime.now()
 		box_count += 1
-		print("Running on " + str(numCores) + " core(s)")
+		if mode != "batch": print("Running on " + str(numCores) + " core(s)")
 
 		# Calculate borders for input map
 		borderInput_0, borderInput_1, borderInput_2 = [], [], []
@@ -105,23 +104,22 @@ def iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimens
  
 		# Iterate over all windows
 		for index_i, i in enumerate(windows):
-			if runOnGPU >= 1:
+			if runOnGPU == 1:
 				from numba import cuda
 				with cuda.gpus[gpu_ids[0]]:
 					freqMapCuda = cuda.to_device(freqMap)
-			else:
+			if runOnGPU == 0:
 				freqMapCuda = freqMap
  
 			WinCountNumCore += 1
 			curr_res = resolutions[index_i]
 			windowSize = i
-			print("Calculations for resolution " + str(1/curr_res))
-   
+			if mode != "batch" or runOnGPU: print("Calculations for resolution " + str(1/curr_res))
+		
    
 			# Bandpass filtering
 			permutated_sample1_filtered = []
 			permutated_sample2_filtered = []
-			startCreation = datetime.datetime.now()
 			if collapseWindow_i: # Tilt-series
 				bandpassFilter = filterChoice(apix, fft_map1_ini[0], res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], True)
 				sample1_filtered = filterChoice(apix, fft_map1_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter, True)
@@ -187,13 +185,13 @@ def iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimens
 		filled = False
 		if (runOnGPU >= 1):
 			try:
-				print("Try map filling on GPU")
+				if mode != "batch": print("Try map filling on GPU")
 				localResMap_out = fillMap_cuda(j, k, l, localResMap_size, localResMap_out, locResMap, p_cutoff, test2, res, lowRes, numPval, gpu_ids[0])
 				filled = True
 			except:
 				filled = False
 		if not filled:
-			print("Map filling on CPU")
+			if mode != "batch": print("Map filling on CPU")
 			locResMap = np.array(locResMap, dtype=np.float32)
 			queue = mp.Queue()
 			itRange = int(np.ceil(localResMap_size[0]/numCores))
@@ -269,11 +267,14 @@ def iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimens
 						else:
 							pValues_zSlice = pValues_zSlice[localResMap_outTemp[z_slice] < lowResRounded]
 						actualVAllues.append(np.prod(pValues_zSlice.shape))
-						if mask_measure == "median":
-							median_pValue_zSlice = np.median(pValues_zSlice.flatten())
-						if mask_measure == "average":
-							median_pValue_zSlice = np.average(pValues_zSlice.flatten())
-						dictTiltSeries[res_rounded].append(float(median_pValue_zSlice))
+						if len(pValues_zSlice.flatten()) != 0:
+							if mask_measure == "median":
+								median_pValue_zSlice = np.median(pValues_zSlice.flatten())
+							if mask_measure == "average":
+								median_pValue_zSlice = np.average(pValues_zSlice.flatten())
+							dictTiltSeries[res_rounded].append(float(median_pValue_zSlice))
+						else:
+							dictTiltSeries[res_rounded].append(float(1))
 				else:
 					pValues = locResMap[index_i]
 					if signalMask_padded is not None:
@@ -309,8 +310,8 @@ def iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimens
 			plot_heatmap_pvalue(merged_dictsTiltSeries, os.path.join(outputDir, preName + "_pValuePlot"), 0, 0.05, "Slices", "Resolution", "p-Value", 7, 4, "svg", actualRes_global_new, ratioSignal)
 
 		plot_heatmap_qvalue(resList_glob, pValListGlobal, os.path.join(outputDir, preName + "_qValuePlot"), 0, 0.5, "1/Resolution", "q-value", 8, 5, "svg", actualRes_global_new, ratioSignal)
-		print(str(mask_measure) + " resolution calculated in signal regions: " + str(actualRes_global_new))
-		print("ratio of considered signal regions: " + str(ratioSignal))  
+		if mode != "batch": print(str(mask_measure) + " resolution calculated in signal regions: " + str(actualRes_global_new))
+		if mode != "batch": print("ratio of considered signal regions: " + str(ratioSignal))  
 		with open(os.path.join(outputDir, preName + "_qualityPlot.json"), "w") as json_file:
 			json.dump(merged_dictsTiltSeries, json_file, indent=4)
 	else:
@@ -321,8 +322,7 @@ def iterateBoxesWindows(collapseWindow_i, localResMap_out, boxes_iterate, dimens
 
 def combine_concat(dict_list):
 	"""
-	Towards median resolution estimation. This is in order to combine values over multiple boxes (in case map is too large and need to be split to be processed.)
-	This is an irrelevant extra functionality not used right now we we have only one box, kept only for potential later use.
+	Outdated. Towards median resolution estimation. This was used in order to combine values over multiple boxes (in case map is too large and need to be split to be processed.)
 	"""
 	result = {}
 	for d in dict_list:
@@ -403,7 +403,7 @@ def writeMrcFile(data, name, apix):
 	mrcMap.voxel_size = apix
 	mrcMap.close()
 
-def plot_heatmap_qvalue(x_values, y_values, output_path, minV, maxV, xAxisLabel, yAxisLabel, figSizeX=10, figSizeY=4, format="png", actualResGlobal = 0, ratioSignal=0):
+def plot_heatmap_qvalue(x_values, y_values, output_path, minV, maxV, xAxisLabel, yAxisLabel, figSizeX=12, figSizeY=4, format="png", actualResGlobal = 0, ratioSignal=0):
 	"""
 	Create what is refered to as a q-value plot in the paper from which the median resolution is derived 
  	for tomograms, tilt-series and micrographs.
@@ -419,14 +419,14 @@ def plot_heatmap_qvalue(x_values, y_values, output_path, minV, maxV, xAxisLabel,
 
 	# Create the plot
 	plt.figure(figsize=(figSizeX, figSizeY))
-	plt.rcParams['font.size'] = 16
+	plt.rcParams['font.size'] = 14
 
 	plt.plot(x_values, y_values, linestyle='-', marker='o', color='b', markersize=3)
 	plt.xlabel(xAxisLabel)
 	plt.ylabel(yAxisLabel)
 	plt.ylim(minV, maxV)  
 	plt.grid(False)
-	plt.title("median resolution of " + str(actualResGlobal) +  " within signal (signal ratio: " + str(ratioSignal) + ")")
+	plt.title("median resolution in defined region " + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
 	plt.tight_layout()
 
 	# Save the plot in the specified format

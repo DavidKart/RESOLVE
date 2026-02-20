@@ -55,13 +55,13 @@ There are a few advanced processing options (opened when clicking `Show Advanced
 
 ![GUI advanced processing options](screenshots/GUI_advanced.png)
 
-**`CPU Threads`** Specify number of CPU threads. Usually, 4 should be fine.
+**`CPU Threads`** Specify number of CPU threads. For CPU batch processing, increased number of threads will significantly increase processing speed.
 
 **`GPU`** Choose whether to enable GPU processing or not, and option to choose GPUs. For micrographs, GPU mode is not recommended. Otherwise, GPU usage will make processing usually much faster. Probably 2 GPUs maximize efficiency for most cases.
 
 **`Run fast`** Possibly less accurate, but faster - lower sampling in Fourier space (fewer resolutions checked) and real space (increased step size). Requires also less memory.
 
-**`Input Mask`** This is meant to provide flexibility for median (global) resolution estimations for micrographs, tilt-series or tomograms. The mask should have the same dimensions as the input maps, allowing to focus the global measurements on a specific region of interest. Additionally, the mean may be chosen instead of the median.
+**`Input Mask`** This is meant to provide flexibility for median (global) resolution estimations for micrographs, tilt-series or tomograms. The mask should have the same dimensions as the input maps, allowing to focus the global measurements on a specific region of interest. Additionally, the mean may be chosen instead of the median. If not used, the median resolution estimate will focus only on regions which pass the lowest resolution shell. This can improve interpretability of the median resolution if input map is partially empty (e.g. particles in solution or lamellae). For stringent comparison, an input mask of either the whole map or focused on a region of interest should be employed.
 
 ### Command line mode
 
@@ -108,18 +108,19 @@ cd tutorial_data
 
 Run RESOLVE from command line:
 ```bash
-python ../RESOLVE.py --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output
+python ../RESOLVE.py --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output ----cpu_threads 16
 ```
 
 For faster processing, add the `--fast` option:
 ```bash
-python ../RESOLVE.py --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output --fast
+python ../RESOLVE.py --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output ----cpu_threads 16 --fast
 ```
 
 For micrographs, the `--gpu_enabled` flag usually slows down processing and is not necessary!
+For fast CPU batch processing, it should be beneficial to split across as many threads as available.
 
 The output can be found in the newly created micrograph_batch_output directory. For each input micrograph half-map pair, there will be an output .mrc file, an output .png file and a *q*-value plot (with the median *q*-value per resolution). Note that the cutoff for median (global) resolution determination is at *q* = 0.05. Note also the summary.tsv file, the summarized and sorted output for the median (global) resolution for all input micrographs.
 
 ### Notes about tilt-series and tomogram batch processing
 
-For tilt-series and tomograms, please adjust the `--config` option accordingly to either `--config Tilt-series` or `--config Tomograms`. Always add the `--gpu_enabled` flag, otherwise processing may take very long. Consider using the `--fast` flag if you have a large dataset to further speed up processing.
+For tilt-series and tomograms, please adjust the `--config` option accordingly to either `--config Tilt-series` or `--config Tomograms`. For 3D input, always add the `--gpu_enabled` flag, otherwise processing may take very long. Consider using the `--fast` flag if you have a large dataset to further speed up processing.
