@@ -120,21 +120,41 @@ def iterateBoxesWindows(mode, collapseWindow_i, localResMap_out, boxes_iterate, 
 			# Bandpass filtering
 			permutated_sample1_filtered = []
 			permutated_sample2_filtered = []
-			if collapseWindow_i: # Tilt-series
-				bandpassFilter = filterChoice(apix, fft_map1_ini[0], res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], True)
-				sample1_filtered = filterChoice(apix, fft_map1_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter, True)
-				sample2_filtered = filterChoice(apix, fft_map2_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter, True)
-				for ranInd in range(it_randomMaps): # If multiple randomly permutated maps are needed to create a large enough reference distribution
-					permutated_sample2_filtered.append(filterChoice(apix, currentMaps4_fft[ranInd], res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter, True))    
-				sample1_filtered = np.array(sample1_filtered)
-				sample2_filtered = np.array(sample2_filtered)
-				permutated_sample2_filtered = np.array(permutated_sample2_filtered)
-			else:
-				bandpassFilter = filterChoice(apix, fft_map1_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], True)
-				sample1_filtered = filterChoice(apix, fft_map1_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter)
-				sample2_filtered = filterChoice(apix, fft_map2_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter) 
-				for ind_rand in range(it_randomMaps): # If multiple randomly permutated maps are needed to create a large enough reference distribution
-					permutated_sample2_filtered.append(filterChoice(apix, currentMaps4_fft[ind_rand], res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter))
+			try:
+				if collapseWindow_i: # Tilt-series
+					bandpassFilter = filterChoice(apix, fft_map1_ini[0], res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], True)
+					sample1_filtered = filterChoice(apix, fft_map1_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter, True)
+					sample2_filtered = filterChoice(apix, fft_map2_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter, True)
+					for ranInd in range(it_randomMaps): # If multiple randomly permutated maps are needed to create a large enough reference distribution
+						permutated_sample2_filtered.append(filterChoice(apix, currentMaps4_fft[ranInd], res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter, True))    
+					sample1_filtered = np.array(sample1_filtered)
+					sample2_filtered = np.array(sample2_filtered)
+					permutated_sample2_filtered = np.array(permutated_sample2_filtered)
+				else:
+					bandpassFilter = filterChoice(apix, fft_map1_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], True)
+					sample1_filtered = filterChoice(apix, fft_map1_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter)
+					sample2_filtered = filterChoice(apix, fft_map2_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter) 
+					for ind_rand in range(it_randomMaps): # If multiple randomly permutated maps are needed to create a large enough reference distribution
+						permutated_sample2_filtered.append(filterChoice(apix, currentMaps4_fft[ind_rand], res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter))
+			except:
+				print("Bandpass filtering with GPU failed, likely due to memory issues, try CPU instead. GPU will still be used for correlation measurements")
+				filterChoice = hypTan
+				if collapseWindow_i: # Tilt-series
+					bandpassFilter = filterChoice(apix, fft_map1_ini[0], res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], True)
+					sample1_filtered = filterChoice(apix, fft_map1_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter, True)
+					sample2_filtered = filterChoice(apix, fft_map2_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter, True)
+					for ranInd in range(it_randomMaps): # If multiple randomly permutated maps are needed to create a large enough reference distribution
+						permutated_sample2_filtered.append(filterChoice(apix, currentMaps4_fft[ranInd], res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter, True))    
+					sample1_filtered = np.array(sample1_filtered)
+					sample2_filtered = np.array(sample2_filtered)
+					permutated_sample2_filtered = np.array(permutated_sample2_filtered)
+				else:
+					bandpassFilter = filterChoice(apix, fft_map1_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], True)
+					sample1_filtered = filterChoice(apix, fft_map1_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter)
+					sample2_filtered = filterChoice(apix, fft_map2_ini, res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter) 
+					for ind_rand in range(it_randomMaps): # If multiple randomly permutated maps are needed to create a large enough reference distribution
+						permutated_sample2_filtered.append(filterChoice(apix, currentMaps4_fft[ind_rand], res_obj_inv, freqMapCuda, shells[index_i][0], shells[index_i][1], falloff, gpu_ids[0], False, bandpassFilter))
+
 			# print("full creation taking " + str(datetime.datetime.now()-startCreation) + "\n")
 			permutated_sample1_filtered = [sample1_filtered]
 
