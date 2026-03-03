@@ -76,9 +76,11 @@ def iterateBoxesWindows(mode, collapseWindow_i, localResMap_out, boxes_iterate, 
 		for _ in range(it_randomMaps):
 			# For anything but refined maps, go for phase permutation as reference
 			if not runOnAveragedMap:
-				angles = np.angle(fft_map2_ini)
-				angles_flat = angles.ravel()
-				np.random.shuffle(angles_flat)
+				# angles = np.angle(fft_map2_ini)
+				# angles_flat = angles.ravel()
+				# np.random.shuffle(angles_flat)
+				angles = np.ascontiguousarray(np.angle(fft_map2_ini))
+				np.random.shuffle(angles.reshape(-1))
 				currentMaps4_fft.append(np.abs(fft_map2_ini) * np.exp(1j * angles))    
 	
 			else:
@@ -798,7 +800,6 @@ def hypTan_cuda(apix, fftmap, res_obj_inv, cuda_distance, low_freq, high_freq, f
 	"""
 	Hyperbolic tangent bandpass filter for GPU.
 	"""		
-
 	from numba import cuda
 	cuda.select_device(gpu_id)
 	stream = cuda.stream()
@@ -889,10 +890,10 @@ def hypTan_cuda(apix, fftmap, res_obj_inv, cuda_distance, low_freq, high_freq, f
 		i, j, k = cuda.grid(3)
 		if i < cuda_shapeMap[0] and j < cuda_shapeMap[1] and k < cuda_shapeMap[2]:
 			cuda_bandpass[i, j, k] = 0.5 * (
-				np.tanh(np.pi * (cuda_distance[i, j, k] + low_freq) / (low_fall_off * (low_freq - high_freq)))
-				- np.tanh(np.pi * (cuda_distance[i, j, k] - low_freq) / (low_fall_off * (low_freq - high_freq)))
-				- np.tanh(np.pi * (cuda_distance[i, j, k] + high_freq) / (high_fall_off * (low_freq - high_freq)))
-				+ np.tanh(np.pi * (cuda_distance[i, j, k] - high_freq) / (high_fall_off * (low_freq - high_freq)))
+				np.tanh(np.pi * (cuda_distance[i, j, k] + high_freq) / (low_fall_off * (high_freq - low_freq)))
+				- np.tanh(np.pi * (cuda_distance[i, j, k] - high_freq) / (low_fall_off * (high_freq - low_freq)))
+				- np.tanh(np.pi * (cuda_distance[i, j, k] + low_freq) / (high_fall_off * (high_freq - low_freq)))
+				+ np.tanh(np.pi * (cuda_distance[i, j, k] - low_freq) / (high_fall_off * (high_freq - low_freq)))
 			)
 
 	@cuda.jit
@@ -900,10 +901,10 @@ def hypTan_cuda(apix, fftmap, res_obj_inv, cuda_distance, low_freq, high_freq, f
 		i, j = cuda.grid(2)
 		if i < cuda_shapeMap[0] and j < cuda_shapeMap[1]:
 			cuda_bandpass[i, j] = 0.5 * (
-				np.tanh(np.pi * (cuda_distance[i, j] + low_freq) / (low_fall_off * (low_freq - high_freq)))
-				- np.tanh(np.pi * (cuda_distance[i, j] - low_freq) / (low_fall_off * (low_freq - high_freq)))
-				- np.tanh(np.pi * (cuda_distance[i, j] + high_freq) / (high_fall_off * (low_freq - high_freq)))
-				+ np.tanh(np.pi * (cuda_distance[i, j] - high_freq) / (high_fall_off * (low_freq - high_freq)))
+				np.tanh(np.pi * (cuda_distance[i, j] + high_freq) / (low_fall_off * (high_freq - low_freq)))
+				- np.tanh(np.pi * (cuda_distance[i, j] - high_freq) / (low_fall_off * (high_freq - low_freq)))
+				- np.tanh(np.pi * (cuda_distance[i, j] + low_freq) / (high_fall_off * (high_freq - low_freq)))
+				+ np.tanh(np.pi * (cuda_distance[i, j] - low_freq) / (high_fall_off * (high_freq - low_freq)))
 			)
    
 	high_fall_off = falloff
@@ -954,7 +955,7 @@ def hypTan_cuda(apix, fftmap, res_obj_inv, cuda_distance, low_freq, high_freq, f
 
 	return x
 
-def hypTan(apix, fftmap, res_obj_inv, distance, high_freq, low_freq, falloff, runOnGPU, analyze=False, bandpassIn=[], separateXSlices = False):
+def hypTan(apix, fftmap, res_obj_inv, distance, low_freq, high_freq, falloff, runOnGPU, analyze=False, bandpassIn=[], separateXSlices = False):
 	"""
 	Hyperbolic tangent bandpass filter for CPU.
 	"""		
@@ -974,11 +975,11 @@ def hypTan(apix, fftmap, res_obj_inv, distance, high_freq, low_freq, falloff, ru
 	low_fall_off = falloff
 
  
-	bandpass_filter = 0.5*(np.tanh(np.pi*(distance + low_freq)/(low_fall_off*(low_freq - high_freq))) 
-				- np.tanh(np.pi*(distance - low_freq)/(low_fall_off*(low_freq - high_freq)))
-				- np.tanh(np.pi*(distance + high_freq)/(high_fall_off*(low_freq - high_freq))) 
-				+ np.tanh(np.pi*(distance - high_freq)/(high_fall_off*(low_freq - high_freq))))
-	
+	bandpass_filter = 0.5*(np.tanh(np.pi*(distance + high_freq)/(low_fall_off*(high_freq - low_freq))) 
+				- np.tanh(np.pi*(distance - high_freq)/(low_fall_off*(high_freq - low_freq)))
+				- np.tanh(np.pi*(distance + low_freq)/(high_fall_off*(high_freq - low_freq))) 
+				+ np.tanh(np.pi*(distance - low_freq)/(high_fall_off*(high_freq - low_freq))))
+	 
 	bandpass_filter/=np.max(bandpass_filter)
 	if analyze: 
 		return bandpass_filter
