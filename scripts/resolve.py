@@ -180,7 +180,8 @@ def process_one_file(args):
 	pyfftw.config.NUM_THREADS = pyfftw_numCores # Enable multithreading and caching
 	pyfftw.interfaces.cache.enable()
 	pyfftwMap = pyfftw.empty_aligned(pyfftwSize, dtype='float32')
-	pyfftwMap[:] = np.random.normal(1.0, 0.1, size=pyfftwSize)
+	rng = np.random.default_rng(seed=42)
+	pyfftwMap[:] = rng.normal(1.0, 0.1, size=pyfftwSize)
 	output_shape = [i for i in pyfftwSize]
 	output_shape[-1] = output_shape[-1]//2+1
 	fft_output = pyfftw.empty_aligned(output_shape, dtype='complex64')
@@ -213,8 +214,8 @@ def process_one_file(args):
 		padded_inputMap_2 = np.copy(padded_inputMap_1)
 	else:
 		shapePadded = [sizeMap[i] + 2 * maxWindow_half[i] for i in range(len(sizeMap))]
-		padded_inputMap_1 = np.random.choice(halfMap1Data.flatten(), size=np.prod(shapePadded)).reshape(shapePadded)
-		padded_inputMap_2 = np.random.choice(halfMap2Data.flatten(), size=np.prod(shapePadded)).reshape(shapePadded)
+		padded_inputMap_1 = rng.choice(halfMap1Data.flatten(), size=np.prod(shapePadded)).reshape(shapePadded)
+		padded_inputMap_2 = rng.choice(halfMap2Data.flatten(), size=np.prod(shapePadded)).reshape(shapePadded)
 
 
 	# Place half-maps into padded maps
