@@ -20,6 +20,7 @@ class ConfigPanel(QWidget):
         # Dropdown menu for selecting the configuration
         self.config_selector = QComboBox()
         self.config_selector.addItems(["Refined-Maps", "Micrographs", "Tilt-Series", "Tomograms"])
+        self.config_selector.currentTextChanged.connect(self.on_config_changed)
         layout.addWidget(self.config_selector)
 
         form_layout = QFormLayout()
@@ -117,12 +118,12 @@ class ConfigPanel(QWidget):
         # GPU checkbox and input
         gpu_layout = QHBoxLayout()
         self.gpu_checkbox = QCheckBox("Enable GPU")
-        self.gpu_checkbox.setChecked(True)  # Set to True by default
+        self.gpu_checkbox.setChecked(True)
         self.gpu_input = QLineEdit()
         self.gpu_input.setPlaceholderText("0,1")
-        self.gpu_input.setEnabled(True)  # Enable by default
-        self.gpu_input.setInputMask("")  # Clear any input mask
-        self.gpu_input.setMaxLength(32767)  # Set to maximum length
+        self.gpu_input.setEnabled(True)
+        self.gpu_input.setInputMask("")
+        self.gpu_input.setMaxLength(32767)
         gpu_layout.addWidget(self.gpu_checkbox)
         gpu_layout.addWidget(self.gpu_input)
 
@@ -138,7 +139,7 @@ class ConfigPanel(QWidget):
         # Run fast checkbox
         run_fast_layout = QHBoxLayout()
         self.run_fast_checkbox = QCheckBox("fast analysis")
-        self.run_fast_checkbox.setChecked(False)  # True by default
+        self.run_fast_checkbox.setChecked(False)
         run_fast_layout.addWidget(self.run_fast_checkbox)
         
         help_button_fast = QToolButton()
@@ -150,7 +151,41 @@ class ConfigPanel(QWidget):
 
         advanced_layout.addRow("Run fast:", run_fast_layout)
 
-        # Input mask option with dropdown for median/average
+        # --- Median resolution section ---
+        median_res_header = QHBoxLayout()
+        median_res_label = QLabel("Median resolution")
+        median_res_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        median_res_header.addWidget(median_res_label)
+
+        help_button_median_res = QToolButton()
+        help_button_median_res.setText("?")
+        help_button_median_res.setFixedWidth(20)
+        help_button_median_res.setToolTip("Measuring global resolution with the following settings. Only applicable to Micrographs, Tilt-series and Tomograms.")
+        median_res_header.addWidget(help_button_median_res)
+        median_res_header.addStretch()
+
+        advanced_layout.addRow(median_res_header)
+
+        # Masking strategy dropdown
+        strategy_layout = QHBoxLayout()
+        self.mask_strategy_combo = QComboBox()
+        self.mask_strategy_combo.addItems(["remove background", "signal mask", "full map"])
+        strategy_layout.addWidget(self.mask_strategy_combo)
+
+        help_button_strategy = QToolButton()
+        help_button_strategy.setText("?")
+        help_button_strategy.setFixedWidth(20)
+        help_button_strategy.setToolTip(
+            "Choose how to mask the map for global resolution estimation.\n"
+            "• remove background: automatically remove regions not passing lowest measured resolution.\n"
+            "• signal mask: provide a custom binary mask file.\n"
+            "• full map: use the entire map without masking."
+        )
+        strategy_layout.addWidget(help_button_strategy)
+
+        advanced_layout.addRow("Masking strategy:", strategy_layout)
+
+        # Input mask file row (only visible when "signal mask" is selected)
         row_mask_layout = QHBoxLayout()
         self.input_mask = QLineEdit()
         row_mask_layout.addWidget(self.input_mask)
@@ -160,20 +195,37 @@ class ConfigPanel(QWidget):
         mask_file_button.clicked.connect(lambda: self.open_file_dialog(self.input_mask))
         row_mask_layout.addWidget(mask_file_button)
 
-        self.mask_measure_combo = QComboBox()
-        self.mask_measure_combo.addItems(["median", "average"])
-        self.mask_measure_combo.setToolTip("Measure to calculate global resolution from local measurements.")
-        row_mask_layout.addWidget(self.mask_measure_combo)
-
         help_button_mask = QToolButton()
         help_button_mask.setText("?")
         help_button_mask.setFixedWidth(20)
-        help_button_mask.setToolTip("Focus global resolution estimates with an input mask.")
+        help_button_mask.setToolTip("Provide a binary mask file to focus the resolution estimate on the region of interest.")
         row_mask_layout.addWidget(help_button_mask)
 
         self.mask_row_container = QWidget()
         self.mask_row_container.setLayout(row_mask_layout)
+        self.mask_row_container.setVisible(False)  # hidden by default
         advanced_layout.addRow("Input Mask:", self.mask_row_container)
+
+        # Also hide the label for the mask row; we track it to show/hide together
+        self.mask_row_label = advanced_layout.labelForField(self.mask_row_container)
+        if self.mask_row_label:
+            self.mask_row_label.setVisible(False)
+
+        self.mask_strategy_combo.currentTextChanged.connect(self.toggle_mask_input)
+
+        # Measure dropdown (independent, always visible under this section)
+        measure_layout = QHBoxLayout()
+        self.mask_measure_combo = QComboBox()
+        self.mask_measure_combo.addItems(["median", "average"])
+        measure_layout.addWidget(self.mask_measure_combo)
+
+        help_button_measure = QToolButton()
+        help_button_measure.setText("?")
+        help_button_measure.setFixedWidth(20)
+        help_button_measure.setToolTip("Measure to calculate global resolution from local measurements.")
+        measure_layout.addWidget(help_button_measure)
+
+        advanced_layout.addRow("Measure:", measure_layout)
 
         self.advanced_group.setLayout(advanced_layout)
         layout.addWidget(self.advanced_group)
@@ -205,6 +257,18 @@ class ConfigPanel(QWidget):
     def toggle_gpu_input(self, state):
         self.gpu_input.setEnabled(state == 2)
 
+    def on_config_changed(self, text):
+        if text == "Micrographs":
+            self.gpu_checkbox.setChecked(False)
+        else:
+            self.gpu_checkbox.setChecked(True)
+
+    def toggle_mask_input(self, text):
+        visible = (text == "signal mask")
+        self.mask_row_container.setVisible(visible)
+        if self.mask_row_label:
+            self.mask_row_label.setVisible(visible)
+
     def open_file_dialog(self, input_field):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select File")
         if file_path:
@@ -233,7 +297,8 @@ class ConfigPanel(QWidget):
         cpu_threads = self.cpu_threads.value()
         gpu_enabled = self.gpu_checkbox.isChecked()
         gpu_settings = self.gpu_input.text() if gpu_enabled else "Disabled"
-        mask_file = self.input_mask.text().strip()
+        mask_strategy = self.mask_strategy_combo.currentText()
+        mask_file = self.input_mask.text().strip() if mask_strategy == "signal mask" else ""
         mask_measure = self.mask_measure_combo.currentText()
         run_fast = self.run_fast_checkbox.isChecked()
 
@@ -248,6 +313,7 @@ class ConfigPanel(QWidget):
                 gpu_enabled=gpu_enabled,
                 gpu_settings=gpu_settings,
                 run_fast=run_fast,
+                mask_strategy=mask_strategy.replace(" ", "_"),
                 signal_mask_input=mask_file,
                 mask_measure=mask_measure,
                 outputDir=outputDir,

@@ -12,7 +12,7 @@ import scripts.utils_resolve as utils_resolve
 def process_one_file(args):
 	"""Process a single file pair in a worker process. Returns (name, resolution, signal_ratio) or None."""
 	(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gpu_settings,
-	 run_fast, signal_mask_input, mask_measure, outputDir, inputDir,
+	 run_fast, mask_strategy, signal_mask_input, mask_measure, outputDir, inputDir,
 	 runOnAveragedMap, collapseWindow_i, window_size_i, test2, p_cutoff,
 	 resMax, accuracy_steps, referenceDistSize, printDebugging, boxValue,
 	 spacingFilter, falloff) = args
@@ -100,14 +100,22 @@ def process_one_file(args):
 			stepSize = [3,3,3]
 
 	# Processing signal mask for median estimate
-	if (len(signal_mask_input) == 0) or (not os.path.exists(signal_mask_input)):
-		signal_mask = None
-	else:
-		signal_mask = mrcfile.open(signal_mask_input).data*1
-		signal_mask[signal_mask < 1] = 0
-		signal_mask[signal_mask >= 1] = 1
-		signal_mask = np.array(signal_mask, dtype=bool)
-		print("using signal mask for median estimate: " + str(signal_mask_input))
+	signal_mask = None
+	if mask_strategy == "signal_mask":
+		if (len(signal_mask_input) == 0) or (not os.path.exists(signal_mask_input)):
+			signal_mask = None
+		else:
+			signal_mask = mrcfile.open(signal_mask_input).data*1
+			signal_mask[signal_mask < 1] = 0
+			signal_mask[signal_mask >= 1] = 1
+			signal_mask = np.array(signal_mask, dtype=bool)
+			print("using signal mask for median estimate: " + str(signal_mask_input))
+		if signal_mask == None:
+			print("Signal mask not found. Default to remove background strategy for median resolution.")
+		if signal_mask.shape != halfMap1Data.shape:
+			print("Signal mask has not shape of input map. Default to remove background strategy for median resolution.")
+	if mask_strategy == "full_map":
+		signal_mask = np.ones(halfMap1Data.shape)
 
 	# Reading pixel size
 	if mode != "batch" or runOnGPU: print("Input configurations_____________")
@@ -332,7 +340,7 @@ def process_one_file(args):
 	return (preAddToName, float(actualRes_global_new), float(ratioSignal))
 
 
-def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gpu_settings, run_fast, signal_mask_input, mask_measure, outputDir, inputDir):
+def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gpu_settings, run_fast, mask_strategy, signal_mask_input, mask_measure, outputDir, inputDir):
 	if not os.path.exists(outputDir):
 		os.makedirs(outputDir)
 
@@ -384,7 +392,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
    
 	# Shared args tuple that gets passed to process_one_file
 	shared_args = (mode, config, apix, None, None, cpu_threads, gpu_enabled, inputGPUs,
-				   run_fast, signal_mask_input, mask_measure, outputDir, inputDir,
+				   run_fast, mask_strategy, signal_mask_input, mask_measure, outputDir, inputDir,
 				   runOnAveragedMap, collapseWindow_i, window_size_i, test2, p_cutoff,
 				   resMax, accuracy_steps, referenceDistSize, printDebugging, boxValue,
 				   spacingFilter, falloff)

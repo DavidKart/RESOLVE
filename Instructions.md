@@ -61,7 +61,11 @@ There are a few advanced processing options (opened when clicking `Show Advanced
 
 **`Run fast`** Possibly less accurate, but faster - lower sampling in Fourier space (fewer resolutions checked) and real space (increased step size). Requires also less memory.
 
-**`Input Mask`** This is meant to provide flexibility for median (global) resolution estimations for micrographs, tilt-series or tomograms. The mask should have the same dimensions as the input maps, allowing to focus the global measurements on a specific region of interest. Additionally, the mean may be chosen instead of the median. If not used, the median resolution estimate will focus only on regions which pass the lowest resolution shell. This can improve interpretability of the median resolution if input map is partially empty (e.g. particles in solution or lamellae). For stringent comparison, an input mask of either the whole map or focused on a region of interest should be employed.
+#### Settings for median global resolution estimates
+Median resolution is intended as a global quality for Micrographs, tilt-series or tomograms.
+**`Masking strategy`** Choose how to mask the map for global resolution estimation. Options: 'remove_background' (Default. Automatically remove regions not passing the lowest measured resolution shell. This may be useful for partially empty input maps.), 'signal_mask' (provide a custom binary mask file to focus the measure on a region of interest), 'full_map' (use the entire map without masking).
+**`Input Mask`** Optional input when using 'signal mask' as a masking strategy. The input mask need to have the same dimensions as the input half-maps.
+**`Measure`** The mean may be chosen instead of the median.
 
 ### Command line mode
 

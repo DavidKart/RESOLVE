@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--fast", action="store_true", help="Lower sampling in Fourier space and real space. Faster, needs less memory.")
 
     # Input mask & measurement mode
+    parser.add_argument("--mask_strategy", default="remove_background", help="Choose how to mask the map for global resolution estimation. Options: 'remove_background' (automatically remove regions not passing lowest measured resolution), 'signal_mask' (provide a custom binary mask file), 'full_map' (use the entire map without masking).")
     parser.add_argument("--maskFile", default="", help="Focus global resolution estimates with an input mask (default: empty string).")
     parser.add_argument("--mask_measure", choices=["median", "average"], default="median", 
                         help="Measure to calculate global resolution from local measurements (default: median).")
@@ -75,6 +76,7 @@ def main():
         gpu_enabled=args.gpu_enabled,
         gpu_settings=args.gpu_settings if args.gpu_enabled else "Disabled",
         run_fast = args.fast,
+        mask_strategy = args.mask_strategy,
         signal_mask_input=args.maskFile,
         mask_measure=args.mask_measure,
         outputDir=outputDir,
