@@ -63,8 +63,11 @@ There are a few advanced processing options (opened when clicking `Show Advanced
 
 #### Settings for median global resolution estimates
 Median resolution is intended as a global quality for Micrographs, tilt-series or tomograms.
+
 **`Masking strategy`** Choose how to mask the map for global resolution estimation. Options: 'remove_background' (Default. Automatically remove regions not passing the lowest measured resolution shell. This may be useful for partially empty input maps.), 'signal_mask' (provide a custom binary mask file to focus the measure on a region of interest), 'full_map' (use the entire map without masking).
+
 **`Input Mask`** Optional input when using 'signal mask' as a masking strategy. The input mask need to have the same dimensions as the input half-maps.
+
 **`Measure`** The mean may be chosen instead of the median.
 
 ### Command line mode
