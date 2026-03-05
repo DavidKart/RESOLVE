@@ -110,10 +110,11 @@ def process_one_file(args):
 			signal_mask[signal_mask >= 1] = 1
 			signal_mask = np.array(signal_mask, dtype=bool)
 			print("using signal mask for median estimate: " + str(signal_mask_input))
-		if signal_mask == None:
+		if signal_mask is None:
 			print("Signal mask not found. Default to remove background strategy for median resolution.")
 		if signal_mask.shape != halfMap1Data.shape:
 			print("Signal mask has not shape of input map. Default to remove background strategy for median resolution.")
+			signal_mask = None
 	if mask_strategy == "full_map":
 		signal_mask = np.ones(halfMap1Data.shape)
 
