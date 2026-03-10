@@ -28,7 +28,7 @@ def iterateBoxesWindows(mode, collapseWindow_i, localResMap_out, boxes_iterate, 
 	# This loop is outdated, previously used if input was too large for memory. There is only one box.
 	for box_it in boxes_iterate: 
 		dictTiltSeries = {}
-		j,k,l = box_it[0], box_it[1], box_it[2] # 1,1,1 always
+		j,k,l = box_it[0], box_it[1], box_it[2]
 		start_box = datetime.datetime.now()
 		box_count += 1
 		if mode != "batch": print("Running on " + str(numCores) + " core(s)")
