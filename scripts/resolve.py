@@ -128,6 +128,8 @@ def process_one_file(args):
 		if dimension == 3:
 			apix_z = np.round(float((halfMap1.voxel_size).z),2)
 			if mode != "batch" or runOnGPU: print("pixel size read from header (x,y,z): " + str(apix) + " " + str(apix_y) + " " + str(apix_z)) # Z-value may differ for Tilt-series
+	else:
+		apix = float(apix)
 	lowRes = resMax*apix # Lowest resolution 
 	lowResMax = 1/(np.fft.rfftfreq(np.min(sizeMap))[1]/apix)
 	lowRes = np.min([lowRes, lowResMax])
