@@ -212,6 +212,7 @@ def iterateBoxesWindows(mode, collapseWindow_i, localResMap_out, boxes_iterate, 
 				filled = True
 			except:
 				filled = False
+
 		if not filled:
 			if mode != "batch": print("Map filling on CPU")
 			locResMap = np.array(locResMap, dtype=np.float32)
@@ -1242,7 +1243,7 @@ def fillMap_cuda(i_pre, j_pre, k_pre, localResMap_size, localResMap_out, locResM
 			return (temp[(n // 2) - 1] + temp[n // 2]) / 2.0
  
 	@cuda.jit
-	def run_cuda_FDR2d(i_pre, j_pre, k_pre, localResMap_size, cuda_localResMap_out, cuda_locResMap, p_cutoff, cuda_res, lowRes, numPval, Hn, w_edge, w_center):
+	def run_cuda_FDR2d(i_pre, j_pre, k_pre, test2, localResMap_size, cuda_localResMap_out, cuda_locResMap, p_cutoff, cuda_res, lowRes, numPval, Hn, w_edge, w_center):
 		i, j = cuda.grid(2)
 		# localResMap_size = localResMap_size.shape
 		iInd = int((i_pre*localResMap_size[0])+i)
@@ -1318,7 +1319,7 @@ def fillMap_cuda(i_pre, j_pre, k_pre, localResMap_size, localResMap_out, locResM
  
  
 	@cuda.jit
-	def run_cuda_FDR3d(i_pre, j_pre, k_pre, localResMap_size, cuda_localResMap_out, cuda_locResMap, p_cutoff, cuda_res, lowRes, numPval, Hn, w_edge, w_center):
+	def run_cuda_FDR3d(i_pre, j_pre, k_pre, test2, localResMap_size, cuda_localResMap_out, cuda_locResMap, p_cutoff, cuda_res, lowRes, numPval, Hn, w_edge, w_center):
 		i, j, k = cuda.grid(3)
 		# localResMap_size = localResMap_size.shape
 		iInd = int((i_pre*localResMap_size[0])+i)
@@ -1371,11 +1372,20 @@ def fillMap_cuda(i_pre, j_pre, k_pre, localResMap_size, localResMap_out, locResM
 		
 			# --> pSort is the result
 			res_index = -1
+			testing = True
 			for x in range(numPval):
-				if pSort[x] <= p_cutoff:
+				if pSort[x] <= p_cutoff and testing:
 					res_index = x
+					testing = True
 				else:
-					break
+					if not test2:
+						break
+					if test2 and testing:
+						res_index = x
+					if test2 and not testing:
+						res_index -= 1
+						break
+					testing = False
 			
 			if res_index < 0:
 				cuda_localResMap_out[iInd][jInd][kInd] = lowRes
@@ -1386,10 +1396,10 @@ def fillMap_cuda(i_pre, j_pre, k_pre, localResMap_size, localResMap_out, locResM
 	
 	
 	if len(localResMap_size) == 3:
-		run_cuda_FDR3d[blockspergrid, threadsperblock](i_pre, j_pre, k_pre, localResMap_size, cuda_localResMap_out, cuda_locResMap, p_cutoff, cuda_res, lowRes, numPval, Hn, w_edge, w_center)
+		run_cuda_FDR3d[blockspergrid, threadsperblock](i_pre, j_pre, k_pre, test2, localResMap_size, cuda_localResMap_out, cuda_locResMap, p_cutoff, cuda_res, lowRes, numPval, Hn, w_edge, w_center)
 
 	if len(localResMap_size) == 2:
-		run_cuda_FDR2d[blockspergrid, threadsperblock](i_pre, j_pre, k_pre, localResMap_size, cuda_localResMap_out, cuda_locResMap, p_cutoff, cuda_res, lowRes, numPval, Hn, w_edge, w_center)
+		run_cuda_FDR2d[blockspergrid, threadsperblock](i_pre, j_pre, k_pre, test2, localResMap_size, cuda_localResMap_out, cuda_locResMap, p_cutoff, cuda_res, lowRes, numPval, Hn, w_edge, w_center)
 	
  
 	stream.synchronize()
