@@ -74,7 +74,7 @@ Median resolution is intended as a global quality for Micrographs, tilt-series o
 
 Activate conda environment:
 ```bash
-conda activate RESOLVE_env
+conda activate resolve
 ```
 
 Go into help mode to find all available processing options:
