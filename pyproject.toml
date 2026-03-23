@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "RESOLVE"
+version = "0.2.0"
+description = "Local resolution estimation in SPA/STA maps, micrgraphs, tomograms and tilt-series"
+requires-python = ">=3.9"
+
+dependencies = [
+    "numpy",
+    "torch",
+    "scipy",
+    "mrcfile",
+    "matplotlib",
+    "seaborn",
+    "PyQt5",
+]
+
+[project.scripts]
+RESOLVE = "scripts.RESOLVE:main"
+
+[project.gui-scripts]
+RESOLVE_GUI = "scripts.RESOLVE_GUI:main"
+
+[tool.setuptools.packages.find]
+include = ["src*", "scripts*"]

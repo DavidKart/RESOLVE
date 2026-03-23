@@ -7,7 +7,7 @@ import sys
 import os
 
 try:
-    from scripts.resolve import main as resolve_main
+    from src.resolve import main as resolve_main
 except ImportError:
     resolve_main = None
 
@@ -130,7 +130,7 @@ class ConfigPanel(QWidget):
         help_button_gpu = QToolButton()
         help_button_gpu.setText("?")
         help_button_gpu.setFixedWidth(20)
-        help_button_gpu.setToolTip("Check to enable GPU. List GPUs to use, comma separated. By default, the first two available GPUs are used.")
+        help_button_gpu.setToolTip("Check to enable GPU. List GPUs to use. For single file processing, only one GPU is used, by default the first.")
         gpu_layout.addWidget(help_button_gpu)
 
         self.gpu_checkbox.stateChanged.connect(self.toggle_gpu_input)
@@ -259,7 +259,7 @@ class ConfigPanel(QWidget):
 
     def on_config_changed(self, text):
         if text == "Micrographs":
-            self.gpu_checkbox.setChecked(False)
+            self.gpu_checkbox.setChecked(True)
         else:
             self.gpu_checkbox.setChecked(True)
 
@@ -322,8 +322,12 @@ class ConfigPanel(QWidget):
         else:
             print("Error: Could not import resolve.py's main function!")
 
-if __name__ == "__main__":
+
+def main():
     app = QApplication(sys.argv)
     window = ConfigPanel()
     window.show()
     sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    main()

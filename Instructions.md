@@ -30,7 +30,7 @@ conda activate RESOLVE_env
 
 Open graphical user interface (GUI) from anywhere:
 ```bash
-python /yourPath/RESOLVE_GUI.py
+RESOLVE_GUI
 ```
 
 The GUI should appear now:
@@ -79,7 +79,7 @@ conda activate RESOLVE_env
 
 Go into help mode to find all available processing options:
 ```bash
-python RESOLVE.py --help
+RESOLVE --help
 ```
 
 All options previously described for the GUI are also available for command-line processing. Additionally, there is a batch processing mode.
@@ -101,7 +101,7 @@ cd tutorial_data
 
 Run RESOLVE from command line:
 ```bash
-python ../RESOLVE.py --mode single --config "Refined-Maps" --input1 STA/emd_34658_half_map_1.map --input2 STA/emd_34658_half_map_2.map --outputDir STA_output --gpu_enabled
+RESOLVE --mode single --config "Refined-Maps" --input1 STA/emd_34658_half_map_1.map --input2 STA/emd_34658_half_map_2.map --outputDir STA_output --gpu_enabled
 ```
 
 The output can be found in the newly created STA_output directory. Note that both `map` as well as `mrc` endings should work.
@@ -115,16 +115,15 @@ cd tutorial_data
 
 Run RESOLVE from command line:
 ```bash
-python ../RESOLVE.py --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output ----cpu_threads 16
+RESOLVE.py --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output --cpu_threads 16
 ```
 
-For faster processing, add the `--fast` option:
+For faster processing (skipping some shells and increased step size), add the `--fast` option:
 ```bash
-python ../RESOLVE.py --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output ----cpu_threads 16 --fast
+RESOLVE --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output --cpu_threads 16 --fast
 ```
 
-For micrographs, the `--gpu_enabled` flag usually slows down processing and is not necessary!
-For fast CPU batch processing, it should be beneficial to split across as many threads as available.
+For GPU batch processing, instances will be split across GPUs.
 
 The output can be found in the newly created micrograph_batch_output directory. For each input micrograph half-map pair, there will be an output .mrc file, an output .png file and a *q*-value plot (with the median *q*-value per resolution). Note that the cutoff for median (global) resolution determination is at *q* = 0.05. Note also the summary.tsv file, the summarized and sorted output for the median (global) resolution for all input micrographs.
 
