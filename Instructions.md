@@ -115,7 +115,7 @@ cd tutorial_data
 
 Run RESOLVE from command line:
 ```bash
-RESOLVE.py --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output --cpu_threads 16
+RESOLVE --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output --cpu_threads 16
 ```
 
 For faster processing (skipping some shells and increased step size), add the `--fast` option:
