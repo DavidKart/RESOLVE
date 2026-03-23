@@ -25,7 +25,7 @@ GUI mode is convenient for processing a single pair of half-maps. Command line m
 
 Activate conda environment:
 ```bash
-conda activate RESOLVE_env
+conda activate resolve
 ```
 
 Open graphical user interface (GUI) from anywhere:
