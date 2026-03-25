@@ -213,7 +213,7 @@ def process_one_file(args):
 	# median p-value creation
 	actualRes_global_new, signalRatio = None, None
 	if config != "Refined-Maps":
-		if signal_mask == None:
+		if signal_mask is None:
 			# signalMask_stepSize = torch.ones(pValueMapShape, device=device)
 			signalMask_stepSize = np.ones(pValueMapShape)
 			signalMask_stepSize[localResMap_out.cpu().numpy() >= lowRes] = 0
