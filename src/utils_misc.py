@@ -343,36 +343,37 @@ def calculate_median_res(
     mask_measure: str,
 ) -> tuple[dict[float, list[float]], float]:
     """Compute per-shell summary statistics of p-values inside a signal mask.
- 
+
     For each resolution shell the function collects all p-values that
     fall within *signal_mask_step_size*, computes either the median or
     the mean (controlled by *mask_measure*), and stores the result in a
     dictionary keyed by the truncated reciprocal resolution.
- 
-    When ``collapse_window`` is ``True`` **or** ``dimension == 3``, each
+
+    When ``dimension == 3`` or ``config == "Tilt-Series"``, each
     z-slice of a shell is summarised independently (one value per slice);
     otherwise the entire shell volume is reduced to a single value.
- 
+
     Parameters
     ----------
     loc_res_map : torch.Tensor
-        Per-shell p-value maps. Tensor of 2-D or 3-D tensors
-        whose spatial dimensions match *signal_mask_step_size*.
+        Per-shell p-value maps. Tensor whose first axis indexes
+        resolution shells, with spatial dimensions matching
+        *signal_mask_step_size*.
     signal_mask_step_size : torch.Tensor
         Binary mask (values 0 or 1) with the same spatial dimensions as
         each element of *loc_res_map* (or, for the per-slice branch,
         one 2-D slice per z-index).
     resolutions : list of float
         Resolution value associated with each shell (same length as
-        *loc_res_map*).
+        the first axis of *loc_res_map*).
     dimension : int
         Spatial dimensionality (2 or 3).
     config : str
-        "Refined-maps", "Microgrpahs", "Tilt-Series", "Tomograms"
+        "Refined-Maps", "Micrographs", "Tilt-Series", or "Tomograms".
     mask_measure : str
         ``"median"`` or ``"average"`` – the summary statistic to apply
         to the masked p-values.
- 
+
     Returns
     -------
     dict_tilt_series : dict[float, list[float]]
@@ -380,41 +381,38 @@ def calculate_median_res(
         statistics (one entry per z-slice or per shell, depending on
         the branch taken).
     signal_ratio : float
-        ratio of map where signal is found (as defined via 
-        'mask_measure' in the input)
+        Ratio of map where signal is found (as defined via
+        *mask_measure* in the input).
     """
     dict_tilt_series: dict[float, list[float]] = {}
     actualValues = 0
-    overallVAlues = torch.prod(torch.tensor(loc_res_map.shape))
+    overallValues = loc_res_map.numel()
+
+    # Initializations
+    mask_bool = signal_mask_step_size == 1
+    reduce_fn = torch.median if mask_measure == "median" else torch.mean
+
     for index_i in range(len(loc_res_map)):
         res_rounded = int(resolutions[index_i] * 100) / 100
- 
+
         if res_rounded not in dict_tilt_series:
             dict_tilt_series[res_rounded] = []
- 
+
         if (config == "Tilt-Series") or (dimension == 3):
-            for z_slice in range(loc_res_map[index_i].shape[0]):
-                p_values_z = loc_res_map[index_i][z_slice]
-                p_values_z = p_values_z[signal_mask_step_size[z_slice] == 1]
-                actualValues += torch.prod(torch.tensor(p_values_z.shape))
-                if p_values_z.numel() != 0:
-                    if mask_measure == "median":
-                        val = float(torch.median(p_values_z))
-                    elif mask_measure == "average":
-                        val = float(torch.mean(p_values_z))
-                    dict_tilt_series[res_rounded].append(val)
+            shell = loc_res_map[index_i]  # (Z, Y, X)
+            for z_slice in range(shell.shape[0]):
+                masked = shell[z_slice][mask_bool[z_slice]]
+                actualValues += masked.numel()
+                if masked.numel() != 0:
+                    dict_tilt_series[res_rounded].append(reduce_fn(masked).item())
                 else:
                     dict_tilt_series[res_rounded].append(1.0)
         else:
-            p_values = loc_res_map[index_i]
-            p_values = p_values[signal_mask_step_size == 1]
-            actualValues += torch.prod(torch.tensor(p_values.shape))
-            if mask_measure == "median":
-                dict_tilt_series[res_rounded].append(float(torch.median(p_values)))
-            elif mask_measure == "average":
-                dict_tilt_series[res_rounded].append(float(torch.mean(p_values)))
+            masked = loc_res_map[index_i][mask_bool]
+            actualValues += masked.numel()
+            dict_tilt_series[res_rounded].append(reduce_fn(masked).item())
 
-    return dict_tilt_series, np.round((actualValues/overallVAlues).item(), 2)
+    return dict_tilt_series, round(actualValues / overallValues, 2)
 
 
 

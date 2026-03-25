@@ -195,10 +195,18 @@ def process_one_file(args):
 	outputFilename_LocRes = os.path.join(outputDir, preAddToName + ".mrc")
 	pValueMapShape = locResMap[0].shape
 
-
+	# cleanup 1
+	del batchHalf1, batchHalf2
+	torch.cuda.empty_cache()
+	gc.collect()
+ 
 	localResMap_out = utils_misc.fill_map(locResMap, torch.tensor(resolutions, device=device, dtype = locResMap[0].dtype), p_cutoff, lowRes, test2)
 	localResMap_out[localResMap_out>lowRes] = lowRes   
 
+	# cleanup 2
+	locResMap = locResMap.cpu().numpy()
+	torch.cuda.empty_cache()
+ 
 	# median p-value creation
 	actualRes_global_new, signalRatio = None, None
 	if config != "Refined-Maps":
@@ -212,6 +220,15 @@ def process_one_file(args):
 				signalMask_stepSize = signal_mask[::stepSize[0], ::stepSize[1], ::stepSize[2]]   				
 		dict_tilt_series, signalRatio = utils_misc.calculate_median_res(locResMap, signalMask_stepSize, resolutions, dimension, config, mask_measure)
 		actualRes_global_new = utils_misc.write_medianRes(dict_tilt_series, signalRatio, resolutions, p_cutoff, lowRes, config, mode, outputDir, preAddToName, mask_measure)
+
+	# cleanup 3
+	del locResMap
+	if signal_mask is not None:
+		del signal_mask
+	if config != "Refined-Maps":
+		del signalMask_stepSize
+	torch.cuda.empty_cache()
+	gc.collect()
 
 	# Interpolating
 	# The grid needs to be interpolated in the end.
