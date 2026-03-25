@@ -95,7 +95,8 @@ def process_one_file(args):
 		if len(signal_mask_input) == 0:
 			signal_mask = None
 		else:
-			signal_mask = torch.from_numpy(mrcfile.open(signal_mask_input).data * 1).float().to(device)
+			# signal_mask = torch.from_numpy(mrcfile.open(signal_mask_input).data * 1).float().to(device)
+			signal_mask = mrcfile.open(signal_mask_input).data * 1
 			if signal_mask.shape != halfMap1Data.shape:
 				print("Signal mask has not shape of input map. Exit.")
 				return None
@@ -103,7 +104,8 @@ def process_one_file(args):
 			signal_mask[signal_mask >= 1] = 1
 			print("using signal mask for median estimate: " + str(signal_mask_input))
 	if mask_strategy == "full_map":
-		signal_mask = torch.ones(halfMap1Data.shape).to(device)
+		# signal_mask = torch.ones(halfMap1Data.shape).to(device)
+		signal_mask = np.ones(halfMap1Data.shape)
 
 	# Reading pixel size
 	if mode != "batch": print("Input configurations_____________")
@@ -199,16 +201,22 @@ def process_one_file(args):
 	del batchHalf1, batchHalf2
 	torch.cuda.empty_cache()
 	gc.collect()
- 
+
+
 	localResMap_out = utils_misc.fill_map(locResMap, torch.tensor(resolutions, device=device, dtype = locResMap[0].dtype), p_cutoff, lowRes, test2)
 	localResMap_out[localResMap_out>lowRes] = lowRes   
+
+	# cleanup 2
+	locResMap = locResMap.cpu().numpy()
+	torch.cuda.empty_cache()
 
 	# median p-value creation
 	actualRes_global_new, signalRatio = None, None
 	if config != "Refined-Maps":
 		if signal_mask == None:
-			signalMask_stepSize = torch.ones(pValueMapShape, device=device)
-			signalMask_stepSize[localResMap_out >= lowRes] = 0
+			# signalMask_stepSize = torch.ones(pValueMapShape, device=device)
+			signalMask_stepSize = np.ones(pValueMapShape)
+			signalMask_stepSize[localResMap_out.cpu().numpy() >= lowRes] = 0
 		else:
 			if dimension == 2:
 				signalMask_stepSize = signal_mask[::stepSize[0], ::stepSize[1]]   
@@ -216,6 +224,7 @@ def process_one_file(args):
 				signalMask_stepSize = signal_mask[::stepSize[0], ::stepSize[1], ::stepSize[2]]   				
 		dict_tilt_series, signalRatio = utils_misc.calculate_median_res(locResMap, signalMask_stepSize, resolutions, dimension, config, mask_measure)
 		actualRes_global_new = utils_misc.write_medianRes(dict_tilt_series, signalRatio, resolutions, p_cutoff, lowRes, config, mode, outputDir, preAddToName, mask_measure)
+
 
 	# cleanup 3
 	del locResMap
@@ -226,10 +235,9 @@ def process_one_file(args):
 	torch.cuda.empty_cache()
 	gc.collect()
 
-	# Interpolating
 	# The grid needs to be interpolated in the end.
-	gc.collect() # Make sure garbage is collected before interpolating to free memory
 	print("interpolating grid")
+
 	if np.max(stepSize) != 1: # This is always the case in this default script
 		if config == "Tilt-Series": # For tilt-series
 			localResMap = []

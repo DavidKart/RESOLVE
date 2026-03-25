@@ -335,8 +335,8 @@ def fill_map(
 
 
 def calculate_median_res(
-    loc_res_map: torch.Tensor,
-    signal_mask_step_size: torch.Tensor,
+    loc_res_map: np.ndarray,
+    signal_mask_step_size: np.ndarray,
     resolutions: list[float],
     dimension: int,
     config: str,
@@ -355,11 +355,11 @@ def calculate_median_res(
 
     Parameters
     ----------
-    loc_res_map : torch.Tensor
-        Per-shell p-value maps. Tensor whose first axis indexes
+    loc_res_map : np.ndarray
+        Per-shell p-value maps. Array whose first axis indexes
         resolution shells, with spatial dimensions matching
         *signal_mask_step_size*.
-    signal_mask_step_size : torch.Tensor
+    signal_mask_step_size : np.ndarray
         Binary mask (values 0 or 1) with the same spatial dimensions as
         each element of *loc_res_map* (or, for the per-slice branch,
         one 2-D slice per z-index).
@@ -384,14 +384,12 @@ def calculate_median_res(
         Ratio of map where signal is found (as defined via
         *mask_measure* in the input).
     """
+    
+    reduce_fn = np.median if mask_measure == "median" else np.mean
+    
     dict_tilt_series: dict[float, list[float]] = {}
     actualValues = 0
-    overallValues = loc_res_map.numel()
-
-    # Initializations
-    mask_bool = signal_mask_step_size == 1
-    reduce_fn = torch.median if mask_measure == "median" else torch.mean
-
+    overallValues = np.prod(loc_res_map.shape)
     for index_i in range(len(loc_res_map)):
         res_rounded = int(resolutions[index_i] * 100) / 100
 
@@ -399,21 +397,21 @@ def calculate_median_res(
             dict_tilt_series[res_rounded] = []
 
         if (config == "Tilt-Series") or (dimension == 3):
-            shell = loc_res_map[index_i]  # (Z, Y, X)
-            for z_slice in range(shell.shape[0]):
-                masked = shell[z_slice][mask_bool[z_slice]]
-                actualValues += masked.numel()
-                if masked.numel() != 0:
-                    dict_tilt_series[res_rounded].append(reduce_fn(masked).item())
+            for z_slice in range(loc_res_map[index_i].shape[0]):
+                p_values_z = loc_res_map[index_i][z_slice]
+                p_values_z = p_values_z[signal_mask_step_size[z_slice] == 1]
+                actualValues += p_values_z.size
+                if p_values_z.size != 0:
+                    val = float(reduce_fn(p_values_z))
+                    dict_tilt_series[res_rounded].append(val)
                 else:
                     dict_tilt_series[res_rounded].append(1.0)
         else:
-            masked = loc_res_map[index_i][mask_bool]
-            actualValues += masked.numel()
-            dict_tilt_series[res_rounded].append(reduce_fn(masked).item())
-
+            p_values = loc_res_map[index_i]
+            p_values = p_values[signal_mask_step_size == 1]
+            actualValues += p_values.size
+            dict_tilt_series[res_rounded].append(float(reduce_fn(p_values)))
     return dict_tilt_series, round(actualValues / overallValues, 2)
-
 
 
 def plot_heatmap_qvalue(
