@@ -140,8 +140,7 @@ def compute_resolution(
     shells = utils.calculate_shells(apix, np.array(resolutions), shell_size)
 
     # Output tensor: (n_batch, n_windows, *output_shape)
-    locResMap = torch.zeros((n_batch, len(windows_radii), *output_shape), device=device)
-
+    locResMap = torch.zeros((n_batch, len(windows_radii), *output_shape), device=device, dtype=torch.float16)   
     # Iterate over all windows/resolutions
     for index_i, i in enumerate(windows_radii):
         print(f"debug: going for resolution {1 / resolutions[index_i]}")

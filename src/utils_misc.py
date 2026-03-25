@@ -491,7 +491,7 @@ def plot_heatmap_qvalue(
     plt.ylabel(yAxisLabel)
     plt.ylim(minV, maxV)  
     plt.grid(False)
-    plt.title("median resolution in defined region " + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
+    plt.title("median resolution (FDR corrected) " + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
     plt.tight_layout()
 
     # Save the plot in the specified format
@@ -765,10 +765,10 @@ def write_medianRes(
     if (config == "Tomograms") or (config == "Tilt-Series"): 
         plot_heatmap_pvalue(resPerZSlice_dict, os.path.join(outputDir, preName + "_pValuePlot"), 0, 0.05, "Slices", "Resolution", "p-Value", 7, 4, "svg", actualRes_global_new, ratioSignal)
 
-    plot_heatmap_qvalue(resolutions, pValListGlobal, os.path.join(outputDir, preName + "_qValuePlot"), 0, 0.5, "1/Resolution", "q-value", 8, 5, "svg", actualRes_global_new, ratioSignal)
+    plot_heatmap_qvalue(resolutions, pValListGlobal, os.path.join(outputDir, preName + "_medianPValuePlot"), 0, 0.5, "1/Resolution", "median p-value", 8, 5, "svg", actualRes_global_new, ratioSignal)
     if mode != "batch": print(str(mask_measure) + " resolution calculated in signal regions: " + str(actualRes_global_new))
     if mode != "batch": print("ratio of considered signal regions: " + str(ratioSignal))  
-    with open(os.path.join(outputDir, preName + "_qualityPlot.json"), "w") as json_file:
+    with open(os.path.join(outputDir, preName + "_rawPValues.json"), "w") as json_file:
         json.dump(resPerZSlice_dict, json_file, indent=4)
 
     return actualRes_global_new
