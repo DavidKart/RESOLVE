@@ -203,15 +203,11 @@ def process_one_file(args):
 	localResMap_out = utils_misc.fill_map(locResMap, torch.tensor(resolutions, device=device, dtype = locResMap[0].dtype), p_cutoff, lowRes, test2)
 	localResMap_out[localResMap_out>lowRes] = lowRes   
 
-	# cleanup 2
-	locResMap = locResMap.cpu().numpy()
-	torch.cuda.empty_cache()
- 
 	# median p-value creation
 	actualRes_global_new, signalRatio = None, None
 	if config != "Refined-Maps":
 		if signal_mask == None:
-			signalMask_stepSize = torch.ones(pValueMapShape)
+			signalMask_stepSize = torch.ones(pValueMapShape, device=device)
 			signalMask_stepSize[localResMap_out >= lowRes] = 0
 		else:
 			if dimension == 2:
