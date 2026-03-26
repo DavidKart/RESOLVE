@@ -432,7 +432,7 @@ def plot_heatmap_qvalue(
 
     The function plots summary statistics (median or mean
     q-values) against resolution and saves the figure to
-    disk. This is referred to as the "q-value plot" in the paper and
+    disk. This is referred to as the "median p-value plot" in the paper and
     is produced for tomograms, tilt-series, and micrographs.
 
     Parameters
@@ -484,10 +484,10 @@ def plot_heatmap_qvalue(
 
     plt.plot(x_values, y_values, linestyle='-', marker='o', color='b', markersize=3)
     plt.xlabel(xAxisLabel)
-    plt.ylabel(yAxisLabel)
+    plt.ylabel(yAxisLabel + " p-value")
     plt.ylim(minV, maxV)  
     plt.grid(False)
-    plt.title("median resolution (FDR corrected) " + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
+    plt.title(yAxisLabel + " resolution (FDR corrected) " + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
     plt.tight_layout()
 
     # Save the plot in the specified format
@@ -761,7 +761,7 @@ def write_medianRes(
     if (config == "Tomograms") or (config == "Tilt-Series"): 
         plot_heatmap_pvalue(resPerZSlice_dict, os.path.join(outputDir, preName + "_pValuePlot"), 0, 0.05, "Slices", "Resolution", "p-Value", 7, 4, "svg", actualRes_global_new, ratioSignal)
 
-    plot_heatmap_qvalue(resolutions, pValListGlobal, os.path.join(outputDir, preName + "_medianPValuePlot"), 0, 0.5, "1/Resolution", "median p-value", 8, 5, "svg", actualRes_global_new, ratioSignal)
+    plot_heatmap_qvalue(resolutions, pValListGlobal, os.path.join(outputDir, preName + "_medianPValuePlot"), 0, 0.5, "1/Resolution", mask_measure, 8, 5, "svg", actualRes_global_new, ratioSignal)
     if mode != "batch": print(str(mask_measure) + " resolution calculated in signal regions: " + str(actualRes_global_new))
     if mode != "batch": print("ratio of considered signal regions: " + str(ratioSignal))  
     with open(os.path.join(outputDir, preName + "_rawPValues.json"), "w") as json_file:
