@@ -8,47 +8,132 @@ import datetime
 import gc
 from . import core, utils, utils_misc
 import torch
+from dataclasses import dataclass
+from copy import copy
 
-def process_one_file(args):
-	"""Process a single file pair in a worker process. Returns (name, resolution, signal_ratio) or None."""
-	(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gpu_settings,
-	 run_fast, mask_strategy, signal_mask_input, mask_measure, outputDir,
-	 test2, p_cutoff, resMax, accuracy_steps, referenceDistSize,
-	 spacingFilter, falloff) = args
+@dataclass
+class ProcessingJob:
+	"""Configuration for a single half-map processing run.
+
+	Bundles all parameters needed by :func:`process_one_file` into a
+	single object, replacing the positional tuple pattern required by
+	``multiprocessing.Pool.map``.
+
+	Parameters
+	----------
+	mode : str
+		Processing mode. ``'single'`` or ``'batch'``.
+	config : dict
+		Configuration dictionary containing algorithm parameters.
+	apix : float
+		Voxel size in Ångströms per pixel (Å px⁻¹).
+	odd_input : str
+		File path to the first (odd) half-map.
+	even_input : str
+		File path to the second (even) half-map.
+	cpu_threads : int
+		Number of CPU threads available for computation.
+	gpu_enabled : bool
+		Whether to use GPU acceleration.
+	gpu_settings : list[int] or None
+		List of GPU device IDs. Currently only the first is used.
+	run_fast : bool
+		If ``True``, skip intermediate resolution shells and use a
+		larger step size.
+	mask_strategy : str
+		Masking strategy. ``'remove_background'``, ``'signal_mask'``,
+		or ``'full_map'``.
+	signal_mask_input : str or None
+		File path to a binary mask. Used when *mask_strategy* is
+		``'signal_mask'``.
+	mask_measure : str
+		Summary statistic for global resolution. ``'average'`` or
+		``'median'``.
+	outputDir : str
+		Directory path where result files will be written.
+	test2 : bool
+		Whether to apply a secondary statistical test.
+	p_cutoff : float
+		P-value cutoff for significance testing.
+	resMax : float
+		Maximum resolution in Ångströms to evaluate.
+	accuracy_steps : int
+		Number of interpolation steps for sub-shell resolution
+		accuracy.
+	referenceDistSize : int
+		Number of correlation samples for reference distribution
+		construction.
+	spacingFilter : float
+		Width of the bandpass filter relative to Nyquist.
+	falloff : float
+		Sharpness of the bandpass filter roll-off.
+	"""
+
+	mode: str
+	config: dict
+	apix: float | None
+	odd_input: str
+	even_input: str
+	cpu_threads: int
+	gpu_enabled: bool
+	gpu_settings: int | None
+	run_fast: bool
+	mask_strategy: str
+	signal_mask_input: str | None
+	mask_measure: str
+	outputDir: str
+	test2: bool
+	p_cutoff: float
+	resMax: float
+	accuracy_steps: int
+	referenceDistSize: int
+	spacingFilter: float
+	falloff: float
+
+def process_one_file(job: ProcessingJob) -> tuple[str, float, float] | None:
+	"""Process a single half-map pair in a worker process.
+
+	Parameters
+	----------
+	job : ProcessingJob
+		All parameters for this processing run.
+
+	Returns
+	-------
+	tuple[str, float, float] or None
+		``(name, resolution, signal_ratio)``.
+	"""
 
 	# Configurations for running on GPU
-	gpu_ids = None
-	if gpu_enabled:
-		gpu_ids = gpu_settings
+	gpu_id = None
+	if job.gpu_enabled:
+		gpu_id = job.gpu_settings
   
-	if torch.cuda.is_available() and gpu_ids is not None:
-		device = torch.device(f"cuda:{gpu_ids[0]}")
-		print("GPU processing")
+	if torch.cuda.is_available() and gpu_id is not None:
+		device = torch.device(f"cuda:{gpu_id}")
+		print(f'GPU processing: {gpu_id}')
 	else:
 		device = torch.device("cpu")
 		print("CPU processing")
 
-
-    
-
 	# Safety checks
-	if not odd_input.endswith((".mrc", ".map")):
+	if not job.odd_input.endswith((".mrc", ".map")):
 		return None
-	if odd_input == even_input:
+	if job.odd_input == job.even_input:
 		print("Error: given same path twice. End.")
 		return None
 
 	# Naming file
-	preAddToName = odd_input.split("/")[-1][:-4] + "_" + config + "_locRes"  
-	outputFilename_LocRes = os.path.join(outputDir, preAddToName + ".mrc")
+	preAddToName = job.odd_input.split("/")[-1][:-4] + "_" + job.config + "_locRes"  
+	outputFilename_LocRes = os.path.join(job.outputDir, preAddToName + ".mrc")
 
 	# Initializations and reading data
-	halfMap1 = mrcfile.open(odd_input, mode='r')
-	halfMap2 = mrcfile.open(even_input, mode='r')
-	if mode != "batch":
+	halfMap1 = mrcfile.open(job.odd_input, mode='r')
+	halfMap2 = mrcfile.open(job.even_input, mode='r')
+	if job.mode != "batch":
 		print("\nusing input half-maps: ")
-		print(even_input)
-		print(odd_input)
+		print(job.even_input)
+		print(job.odd_input)
 		print("")
   
   
@@ -58,19 +143,19 @@ def process_one_file(args):
 	dimension = len(sizeMap)
 
 	# More safety checks
-	if config == "Refined-Maps":
+	if job.config == "Refined-Maps":
 		if dimension != 3:
 			print("Error: inputs should be 3D")
 			return None
-	if config == "Micrographs":
+	if job.config == "Micrographs":
 		if dimension != 2:
 			print("Error: inputs should be 2D")
 			return None    
-	if config == "Tilt-Series":
+	if job.config == "Tilt-Series":
 		if dimension != 3:
 			print("Error: inputs should be 3D")
 			return None    
-	if config == "Tomograms":
+	if job.config == "Tomograms":
 		if dimension != 3:
 			print("Error: inputs should be 3D")
 			return None
@@ -83,83 +168,83 @@ def process_one_file(args):
 		stepSize = [5,5]
 	else:
 		stepSize = [2,2,2]
-		if run_fast:
+		if job.run_fast:
 			stepSize = [3,3,3]
 
 	# Processing signal mask for median estimate
 	signal_mask = None
-	if mask_strategy == "signal_mask":
-		if not os.path.exists(signal_mask_input):
+	if job.mask_strategy == "signal_mask":
+		if not os.path.exists(job.signal_mask_input):
 			print("Signal mask not found. Exit.")
 			return None
-		if len(signal_mask_input) == 0:
+		if len(job.signal_mask_input) == 0:
 			signal_mask = None
 		else:
 			# signal_mask = torch.from_numpy(mrcfile.open(signal_mask_input).data * 1).float().to(device)
-			signal_mask = mrcfile.open(signal_mask_input).data * 1
+			signal_mask = mrcfile.open(job.signal_mask_input).data * 1
 			if signal_mask.shape != halfMap1Data.shape:
 				print("Signal mask has not shape of input map. Exit.")
 				return None
 			signal_mask[signal_mask < 1] = 0
 			signal_mask[signal_mask >= 1] = 1
-			print("using signal mask for median estimate: " + str(signal_mask_input))
-	if mask_strategy == "full_map":
+			print("using signal mask for median estimate: " + str(job.signal_mask_input))
+	if job.mask_strategy == "full_map":
 		# signal_mask = torch.ones(halfMap1Data.shape).to(device)
 		signal_mask = np.ones(halfMap1Data.shape)
 
 	# Reading pixel size
-	if mode != "batch": print("Input configurations_____________")
-	if apix is None:
+	if job.mode != "batch": print("Input configurations_____________")
+	if job.apix is None:
 		apix = np.round(float((halfMap1.voxel_size).x),2)
 		apix_y = np.round(float((halfMap1.voxel_size).y),2)
 		if dimension == 2:
-			if mode != "batch": print("pixel size read from header (x,y): " + str(apix) + " " + str(apix_y))
+			if job.mode != "batch": print("pixel size read from header (x,y): " + str(apix) + " " + str(apix_y))
 		if dimension == 3:
 			apix_z = np.round(float((halfMap1.voxel_size).z),2)
-			if mode != "batch": print("pixel size read from header (x,y,z): " + str(apix) + " " + str(apix_y) + " " + str(apix_z)) # Z-value may differ for Tilt-series
+			if job.mode != "batch": print("pixel size read from header (x,y,z): " + str(apix) + " " + str(apix_y) + " " + str(apix_z)) # Z-value may differ for Tilt-series
 	else:
-		apix = float(apix)
-	lowRes = resMax*apix # Lowest resolution 
+		apix = float(job.apix)
+	lowRes = job.resMax*apix # Lowest resolution 
 	lowResMax = 1/(np.fft.rfftfreq(np.min(sizeMap))[1]/apix)
 	lowRes = np.min([lowRes, lowResMax])
-	if mode != "batch": print("lowest resolution to consider (10*apix): " + str(np.round(lowRes,2)))
+	if job.mode != "batch": print("lowest resolution to consider (10*apix): " + str(np.round(lowRes,2)))
 
 	# This is for tilt-series 
-	if config == "Tilt-Series":
+	if job.config == "Tilt-Series":
 		dimension_windows = 2
 		stepSize = [5,5,5]
 		stepSize[0] = 1 # Collapse z to 1. Not that for numpy arrays, x and z are swapped (z,y,x instead of x,y,z)
 	else:
 		dimension_windows = dimension
-	if mode != "batch": print("using step size: " + str(" ".join(np.array(stepSize[::-1]).astype(str)))) # Adjust x-z swap
+	if job.mode != "batch": print("using step size: " + str(" ".join(np.array(stepSize[::-1]).astype(str)))) # Adjust x-z swap
 
 	# Get windows (radii) and shells
 	sizeVol = 100
-	resolutions = utils_misc.calculate_resolutions(sizeVol, apix, lowRes, accuracy_steps)
+	resolutions = utils_misc.calculate_resolutions(sizeVol, apix, lowRes, job.accuracy_steps)
 
 	# Get windows and box sizes from precalculated empirical simulations. Print out parameters used.
 	windows = utils_misc.get_windows_empirical(apix, resolutions, dimension_windows)
-	if mode != "batch": 
+	if job.mode != "batch": 
 		print("using window radii [pix]: " + " ".join(map(str,np.round(windows,1))))
-		print("to measure resolutions [Å]: " + " ".join(map(str,np.round(np.array(resolutions),2))))
+		print("to measure resolutions [Å]: " + " ".join(map(str,np.round(resolutions,2))))
 		print("")
 
 	# How many random maps are needed to get a good enough reference distribution
 	windowtest = int(np.ceil(np.max(windows)))*2+1
 	maxEntries = np.prod([windowtest for _ in range(dimension)])	
-	if config == "Tilt-Series":
+	if job.config == "Tilt-Series":
 		maxEntries = np.prod([windowtest for _ in range(dimension_windows)])	
 		possibleTests_nonOverlapping = int(np.prod(np.array(sizeMap[1:])+windowtest)/maxEntries)
 		possibleTests_nonOverlapping = possibleTests_nonOverlapping**2 # Consider enhanced possibility space, dependencies are introduced in Fourier space, and are thus real-space location independent 
 	else:
 		possibleTests_nonOverlapping = int(np.prod(np.array(sizeMap)+windowtest)/maxEntries)
 		possibleTests_nonOverlapping = possibleTests_nonOverlapping**2 # Consider enhanced possibility space, dependencies are introduced in Fourier space, and are thus real-space location independent 
-	it_randomMaps = int(np.ceil(referenceDistSize / possibleTests_nonOverlapping))
+	it_randomMaps = int(np.ceil(job.referenceDistSize / possibleTests_nonOverlapping))
 
 
 
 
-	if config == "Tilt-Series":
+	if job.config == "Tilt-Series":
 		batchHalf1 = torch.from_numpy(halfMap1Data.astype(np.float32)).to(device)
 		batchHalf2 = torch.from_numpy(halfMap2Data.astype(np.float32)).to(device)
 	else:
@@ -168,33 +253,33 @@ def process_one_file(args):
 
 
 	phasePermutation = True
-	if config == "Refined-Maps":
+	if job.config == "Refined-Maps":
 		phasePermutation = False
 
 	# Use batch processing here only for Tilt-series! 
 	locResMap = core.compute_resolution(
 		apix,
-		list(windows),
-		list(resolutions),
+		windows,
+		resolutions,
 		batchHalf1,
 		batchHalf2,
 		stepSize[-1],
-		gpu_ids,
+		gpu_id,
 		it_randomMaps,
-		referenceDistSize,
+		job.referenceDistSize,
 		phasePermutation,
 		4096,
-		spacingFilter,
-		falloff)
+		job.spacingFilter,
+		job.falloff)
  
-	if config != "Tilt-Series":
+	if job.config != "Tilt-Series":
 		locResMap = locResMap[0]
 	else:
 		locResMap = locResMap.permute(1, 0, 2, 3)
 
 	# Naming file
-	preAddToName = odd_input.split("/")[-1][:-4] + "_" + config + "_locRes"  
-	outputFilename_LocRes = os.path.join(outputDir, preAddToName + ".mrc")
+	preAddToName = job.odd_input.split("/")[-1][:-4] + "_" + job.config + "_locRes"  
+	outputFilename_LocRes = os.path.join(job.outputDir, preAddToName + ".mrc")
 	pValueMapShape = locResMap[0].shape
 
 	# cleanup 1
@@ -203,7 +288,7 @@ def process_one_file(args):
 	gc.collect()
 
 
-	localResMap_out = utils_misc.fill_map(locResMap, torch.tensor(resolutions, device=device, dtype = locResMap[0].dtype), p_cutoff, lowRes, test2)
+	localResMap_out = utils_misc.fill_map(locResMap, torch.tensor(resolutions, device=device, dtype = locResMap[0].dtype), job.p_cutoff, lowRes, job.test2)
 	localResMap_out[localResMap_out>lowRes] = lowRes   
 
 	# cleanup 2
@@ -212,7 +297,7 @@ def process_one_file(args):
 
 	# median p-value creation
 	actualRes_global_new, signalRatio = None, None
-	if config != "Refined-Maps":
+	if job.config != "Refined-Maps":
 		if signal_mask is None:
 			# signalMask_stepSize = torch.ones(pValueMapShape, device=device)
 			signalMask_stepSize = np.ones(pValueMapShape)
@@ -222,15 +307,15 @@ def process_one_file(args):
 				signalMask_stepSize = signal_mask[::stepSize[0], ::stepSize[1]]   
 			if dimension == 3:
 				signalMask_stepSize = signal_mask[::stepSize[0], ::stepSize[1], ::stepSize[2]]   				
-		dict_tilt_series, signalRatio = utils_misc.calculate_median_res(locResMap, signalMask_stepSize, resolutions, dimension, config, mask_measure)
-		actualRes_global_new = utils_misc.write_medianRes(dict_tilt_series, signalRatio, resolutions, p_cutoff, lowRes, config, mode, outputDir, preAddToName, mask_measure)
+		dict_tilt_series, signalRatio = utils_misc.calculate_median_res(locResMap, signalMask_stepSize, resolutions, dimension, job.config, job.mask_measure)
+		actualRes_global_new = utils_misc.write_medianRes(dict_tilt_series, signalRatio, resolutions, job.p_cutoff, lowRes, job.config, job.mode, job.outputDir, preAddToName, job.mask_measure)
 
 
 	# cleanup 3
 	del locResMap
 	if signal_mask is not None:
 		del signal_mask
-	if config != "Refined-Maps":
+	if job.config != "Refined-Maps":
 		del signalMask_stepSize
 	torch.cuda.empty_cache()
 	gc.collect()
@@ -239,7 +324,7 @@ def process_one_file(args):
 	print("interpolating grid")
 
 	if np.max(stepSize) != 1: # This is always the case in this default script
-		if config == "Tilt-Series": # For tilt-series
+		if job.config == "Tilt-Series": # For tilt-series
 			localResMap = []
 			for i in range(localResMap_out.shape[0]):
 				localResMap.append(utils_misc.interpolate_with_zoom(localResMap_out[i], sizeMap[1:], stepSize, lowRes))
@@ -259,7 +344,7 @@ def process_one_file(args):
 	localResMapMRC = mrcfile.new(outputFilename_LocRes, overwrite=True)
 	localResMap = np.float32(localResMap)
 	localResMapMRC.set_data(localResMap)
-	if config == "Tilt-Series":
+	if job.config == "Tilt-Series":
 		localResMapMRC.voxel_size = (apix,apix,apix)
 	else:
 		localResMapMRC.voxel_size = apix
@@ -289,7 +374,81 @@ def process_one_file(args):
  
 
 
-def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gpu_settings, run_fast, mask_strategy, signal_mask_input, mask_measure, outputDir, inputDir):
+def main(
+	mode: str,
+	config: dict,
+	apix: float | None,
+	odd_input: str | list[str],
+	even_input: str | list[str],
+	cpu_threads: int,
+	gpu_enabled: bool,
+	gpu_settings: list[int] | None,
+	run_fast: bool,
+	mask_strategy: str,
+	signal_mask_input: str | None,
+	mask_measure: str,
+	outputDir: str,
+	inputDir: str,
+) -> None:
+	"""Run the local resolution estimation pipeline.
+
+	Estimates local resolution from two independent half-maps by measuring
+	local Fourier shell correlations at multiple resolution shells. Supports
+	single-map and batch processing modes.
+
+	Parameters
+	----------
+	mode : str
+		Processing mode. ``'single'`` processes one pair of half-maps;
+		``'batch'`` processes multiple pairs in sequence.
+	config : dict
+		Configuration dictionary containing algorithm parameters such as
+		resolution shells, step size, bandpass filter settings, and
+		statistical thresholds.
+	apix : float
+		Voxel size in Ångströms per pixel (Å px⁻¹).
+	odd_input : str or list[str]
+		File path(s) to the first (odd) half-map(s). A single path in
+		``'single'`` mode or a list of paths in ``'batch'`` mode.
+	even_input : str or list[str]
+		File path(s) to the second (even) half-map(s). Must match the
+		length and element shapes of *odd_input*.
+	cpu_threads : int
+		Number of CPU threads available for computation.
+	gpu_enabled : bool
+		Whether to use GPU acceleration. If ``False``, all computation
+		is performed on the CPU.
+	gpu_settings : list[int] or None
+		GPU device ID to use when *gpu_enabled* is ``True``.
+		 ``None`` when GPU is disabled.
+	run_fast : bool
+		If ``True``, accelerate computation by skipping intermediate
+		resolution shells and using a larger step size, reducing spatial
+		and Fourier-space sampling density. Trades precision for speed.
+	mask_strategy : str
+		Strategy for masking the map during global resolution estimation.
+		``'remove_background'`` automatically removes regions that do not
+		pass the lowest measured resolution. ``'signal_mask'`` applies a
+		user-provided binary mask given by *signal_mask_input*.
+		``'full_map'`` uses the entire map without masking.
+	signal_mask_input : str or None
+		File path to a binary mask defining the region of interest. Only
+		used when *mask_strategy* is ``'signal_mask'``; ignored otherwise.
+	mask_measure : str
+		Summary statistic used for global resolution determination.
+		``'average'`` computes the mean; ``'median'`` computes the median
+		over masked voxels.
+	outputDir : str
+		Directory path where result files will be written.
+	inputDir : str
+		Directory path containing the input half-map files.
+
+	Returns
+	-------
+	None
+		Results are written to *outputDir*.
+	"""
+
 	if not os.path.exists(outputDir):
 		os.makedirs(outputDir)
 
@@ -321,27 +480,47 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 
    
 	# Parse input GPUs			
-	inputGPUs = []
+	inputGPUs = None
 	if gpu_settings != "Disabled":
 		if len(gpu_settings) != 0: inputGPUs = list(np.array(gpu_settings.split(",")).astype(int))
 		if len(gpu_settings) == 0: inputGPUs = list(range(torch.cuda.device_count()))
 
-	# Shared args tuple that gets passed to process_one_file
-	shared_args = (mode, config, apix, None, None, cpu_threads, gpu_enabled, inputGPUs,
-				   run_fast, mask_strategy, signal_mask_input, mask_measure, outputDir,
-				   test2, p_cutoff, resMax, accuracy_steps, referenceDistSize,
-				   spacingFilter, falloff)
+	# Job that gets passed to process_one_file
+	shared_job = ProcessingJob(
+		mode=mode,
+		config=config,
+		apix=apix,
+		odd_input=None,      # filled in per file pair later
+		even_input=None,      # filled in per file pair later
+		cpu_threads=cpu_threads,
+		gpu_enabled=gpu_enabled,
+		gpu_settings=inputGPUs,
+		run_fast=run_fast,
+		mask_strategy=mask_strategy,
+		signal_mask_input=signal_mask_input,
+		mask_measure=mask_measure,
+		outputDir=outputDir,
+		test2=test2,
+		p_cutoff=p_cutoff,
+		resMax=resMax,
+		accuracy_steps=accuracy_steps,
+		referenceDistSize=referenceDistSize,
+		spacingFilter=spacingFilter,
+		falloff=falloff,
+	)
 
 	# Handle single mode processing
 	if mode != "batch":
+		if inputGPUs is not None: # for single mode processing, only one GPU can be used.
+			inputGPUs = inputGPUs[0]
+			shared_job.gpu_settings = inputGPUs
 		outputFilename_LocRes = os.path.join(outputDir, os.path.basename(odd_input)[:-4] + "_" + config + "_locRes" + ".mrc")
 		if os.path.exists(outputFilename_LocRes):
 			print("Warning: " + outputFilename_LocRes + " already exists. This file is processed already. For reprocessing, please delete output file or define new output directory. SKIP!\n")
 			return     
-		args = list(shared_args)
-		args[3] = odd_input   # odd_input
-		args[4] = even_input  # even_input
-		process_one_file(tuple(args))
+		shared_job.odd_input = odd_input   # odd_input
+		shared_job.even_input = even_input   # even_input
+		process_one_file(shared_job)
 		print("IN TOTAL: " + str(datetime.datetime.now()-start_total) + "\n\n")
 		return
 
@@ -369,7 +548,7 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 	it_loops = len(matching_files)
 
 	# Build list of args for each file
-	all_args = []
+	all_jobs = []
 	for iterate_files in range(it_loops):
 		odd_file = matching_files[iterate_files]
 		even_file = odd_file.replace(odd_id, even_id)
@@ -381,18 +560,18 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 			continue
 
 		even_path = os.path.join(inputDir, even_file)
-		args = list(shared_args)
-		args[3] = odd_path
-		args[4] = even_path
-		args[5] = cpuThreads_batch
+		job = copy(shared_job)
+		job.odd_input = odd_path   # odd_input
+		job.even_input = even_path   # even_input
+		job.cpu_threads = cpuThreads_batch
 		if global_threats > 1:
 			if (gpu_settings != "Disabled") and (global_threats != 0):
-				args[7] = [inputGPUs[iterate_files%global_threats]]
+				job.gpu_settings = inputGPUs[iterate_files%global_threats]
 			else:
-				args[7] = []
-		all_args.append(tuple(args))
+				job.gpu_settings = []
+		all_jobs.append(job)
 
-	nFiles = len(all_args)
+	nFiles = len(all_jobs)
 	print(f"Batch mode: found {nFiles} files to process")
 
 
@@ -402,8 +581,8 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 	result_queue = mp.Queue()
 	completed = 0
 
-	def _worker_wrapper(args, queue):
-		result = process_one_file(args)
+	def _worker_wrapper(job_i, queue):
+		result = process_one_file(job_i)
 		queue.put(result)
 
 	n_parallel = global_threats
@@ -412,8 +591,8 @@ def main(mode, config, apix, odd_input, even_input, cpu_threads, gpu_enabled, gp
 
 	start_processing = datetime.datetime.now()
 	# Start multiple threads
-	for i, args in enumerate(all_args):
-		proc = mp.Process(target=_worker_wrapper, args=(args, result_queue))
+	for i, job_i in enumerate(all_jobs):
+		proc = mp.Process(target=_worker_wrapper, args=(job_i, result_queue))
 		proc.start()
 		active_procs.append(proc)
 

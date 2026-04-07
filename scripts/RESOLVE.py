@@ -10,7 +10,7 @@ def main():
                         help="Execution mode: 'single' for file inputs, 'batch' for ID-based processing.")
     parser.add_argument("--config", choices=["Refined-Maps", "Micrographs", "Tilt-Series", "Tomograms"], 
                         required=True, help="Select the configuration type.")
-    parser.add_argument("--apix", required=False, help="Pixel Size. If not given, reading header.")
+    parser.add_argument("--apix", required=False, type=float, default=None, help="Pixel Size. If not given, reading header.")
     parser.add_argument("--outputDir", "--o", required=True, help="Output directory.")
     parser.add_argument("--cpu_threads", "--j", type=int, default=4, help="Number of CPU threads (default: 4).")
     parser.add_argument("--gpu_enabled", action="store_true", help="Enable GPU usage.")

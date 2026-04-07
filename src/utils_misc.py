@@ -34,14 +34,13 @@ def calculate_resolutions(
 
     Returns
     -------
-    resolutions : list[float]
+    resolutions : np.ndarray
         resolutions to measure correlation for.
     """
     freq_map = np.fft.rfftfreq(size_vol, 1)
     freq_map = freq_map[1:]  # discard zero component
     res_map = [1 / f for f in freq_map]
     freq_map_apix = freq_map / apix
-    nyq = 0.5
 
     resolutions = []
     for idx, res in enumerate(res_map):
@@ -52,7 +51,7 @@ def calculate_resolutions(
             continue
         resolutions.append(res_angstrom)
 
-    return resolutions
+    return np.array(resolutions)
 
 def get_windows_empirical(
     apix : float,

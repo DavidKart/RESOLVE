@@ -8,12 +8,12 @@ from . import utils, utils_correlations
 
 def compute_resolution(
     apix: float,
-    windows_radii: list[float],
-    resolutions: list[float],
+    windows_radii: np.ndarray,
+    resolutions: np.ndarray,
     batch_halfMap1: list[torch.Tensor],
     batch_halfMap2: list[torch.Tensor],
     stepSize: int = 3,
-    gpu_ids: list[int] | None = None,
+    gpu_ids: int | None = None,
     it_randomMaps: int = 1,
     referenceDistSize: int = 10000,
     phase_permutation: bool = True,
@@ -40,9 +40,8 @@ def compute_resolution(
     stepSize : int
         Step size in voxels between local correlation sampling positions.
         Larger values reduce computation time but lower spatial sampling.
-    gpu_ids : list[int]
-        List of GPU device IDs to use for computation. Pass an empty
-        list to fall back to CPU. Currently only using first GPU.
+    gpu_ids : int | None
+        GPU device ID to use for computation. None for CPU.
     it_randomMaps : int
         Number of randomized map iterations used for reference distribution creation.
     referenceDistSize : int
@@ -84,19 +83,19 @@ def compute_resolution(
     )
 
     if torch.cuda.is_available() and gpu_ids is not None:
-        device = torch.device(f"cuda:{gpu_ids[0]}")
+        device = torch.device(f"cuda:{gpu_ids}")
     else:
         device = torch.device("cpu")
 
     # print(f"debug device {device}")
 
-    # Shared geometry
+    # pad: required padding for calculations at the edges
     pad = int(np.ceil(np.max(windows_radii)))
-    corrected_box_size = ref_shape
-    dim = len(corrected_box_size)
+    corrected_box_size = ref_shape # original
+    dim = len(corrected_box_size) # 2D or 3D
     maxRadius = np.array([pad for _ in range(dim)])
     stepSize_dim = np.array([stepSize for _ in range(dim)])
-    output_shape = tuple(len(range(0, s, stepSize)) for s in ref_shape)
+    output_shape = tuple(len(range(0, s, stepSize)) for s in ref_shape) # output shape reduced by step size
 
     # Per-element FFT preparation and permutation map generation
     fft_pairs = []
@@ -134,19 +133,20 @@ def compute_resolution(
 
         permutation_maps_fft_all.append(perm_ffts)
 
-    # Frequency map and shells are the same for all batch elements (same shape & apix)
+    # Calculation of frequency map and shells
     frequencyMap = utils.calculate_frequency_map(fft_shape, device) / float(apix)
-    resolutions = 1 / np.array(resolutions)
-    shells = utils.calculate_shells(apix, np.array(resolutions), shell_size)
+    resolutions = 1 / resolutions
+    shells = utils.calculate_shells(apix, resolutions, shell_size)
 
-    # Output tensor: (n_batch, n_windows, *output_shape)
+    # Preparing empty output map to fill. Dimensions: (n_batch, n_windows, *output_shape)
     locResMap = torch.zeros((n_batch, len(windows_radii), *output_shape), device=device, dtype=torch.float16)   
+    
     # Iterate over all windows/resolutions
     for index_i, i in enumerate(windows_radii):
-        print(f"debug: going for resolution {1 / resolutions[index_i]}")
+        # print(f"debug: going for resolution {1 / resolutions[index_i]}")
         windowSize = i
 
-        # Bandpass filter is shared across batch elements
+        # Bandpass filter creation
         bandpassFilter = utils.make_hyptan_bandpass(
             frequencyMap, shells[index_i][0], shells[index_i][1], falloff
         )
