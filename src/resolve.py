@@ -571,7 +571,6 @@ def main(
 			if inputGPUs is not None: 
 				job.gpu_settings = inputGPUs[0]
 				print(inputGPUs)
-		print(job.gpu_settings)
 				
 
 		all_jobs.append(job)
