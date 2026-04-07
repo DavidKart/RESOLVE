@@ -565,10 +565,15 @@ def main(
 		job.even_input = even_path   # even_input
 		job.cpu_threads = cpuThreads_batch
 		if global_threats > 1:
-			if (gpu_settings != "Disabled") and (global_threats != 0):
+			if (gpu_settings != "Disabled") and (global_threats != 0) and (inputGPUs is not None):
 				job.gpu_settings = inputGPUs[iterate_files%global_threats]
-			else:
-				job.gpu_settings = []
+		else:
+			if inputGPUs is not None: 
+				job.gpu_settings = inputGPUs[0]
+				print(inputGPUs)
+		print(job.gpu_settings)
+				
+
 		all_jobs.append(job)
 
 	nFiles = len(all_jobs)
