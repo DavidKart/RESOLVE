@@ -82,6 +82,7 @@ def compute_resolution(
         "All elements in batch_halfMap2 must have the same shape"
     )
 
+   
     if torch.cuda.is_available() and gpu_ids is not None:
         device = torch.device(f"cuda:{gpu_ids}")
     else:
@@ -108,7 +109,7 @@ def compute_resolution(
             pad=pad,
             device=device,
         )
-        fft_pairs.append((fft1, fft2, fft_shape, fft_crop))
+        fft_pairs.append((fft1.cpu(), fft2.cpu(), fft_shape, fft_crop)) # intermediate cpu transfer for gpu memory relief
 
         perm_ffts = []
         if phase_permutation:
@@ -120,7 +121,7 @@ def compute_resolution(
                 shuffled_angles = angles_flat[
                     torch.randperm(angles_flat.numel(), device=device)
                 ].reshape(fft2.shape)
-                perm_ffts.append(fft2_abs * torch.exp(1j * shuffled_angles))
+                perm_ffts.append((fft2_abs * torch.exp(1j * shuffled_angles)).cpu())
             else:
                 t_flat = batch_halfMap2[b].flatten().float().to(device)
                 idx = (
@@ -129,9 +130,22 @@ def compute_resolution(
                 )
                 permutation_map = t_flat[idx].reshape(fft_shape)
                 fft3 = torch.fft.rfftn(permutation_map, dim=list(range(len(fft_shape))))
-                perm_ffts.append(fft3)
+                perm_ffts.append(fft3.cpu())
+        del fft1, fft2
 
         permutation_maps_fft_all.append(perm_ffts)
+        
+        # Cleanup
+        batch_halfMap1[b] = None
+        batch_halfMap2[b] = None
+
+    # Cleanup 
+    if phase_permutation:
+        del fft2_abs
+    else:
+        del fft3
+    del batch_halfMap1, batch_halfMap2
+    torch.cuda.empty_cache()
 
     # Calculation of frequency map and shells
     frequencyMap = utils.calculate_frequency_map(fft_shape, device) / float(apix)
@@ -155,17 +169,17 @@ def compute_resolution(
             fft1, fft2, fft_shape_b, fft_crop_b = fft_pairs[b]
 
             sample1_filtered = utils.apply_bandpass_and_invert(
-                fft1, bandpassFilter, fft_shape_b, fft_crop_b
+                fft1.to(device), bandpassFilter, fft_shape_b, fft_crop_b
             )
             sample2_filtered = utils.apply_bandpass_and_invert(
-                fft2, bandpassFilter, fft_shape_b, fft_crop_b
+                fft2.to(device), bandpassFilter, fft_shape_b, fft_crop_b
             )
 
             permutated_sample2_filtered = []
             for ind_rand in range(it_randomMaps):
                 permutated_sample2_filtered.append(
                     utils.apply_bandpass_and_invert(
-                        permutation_maps_fft_all[b][ind_rand],
+                        permutation_maps_fft_all[b][ind_rand].to(device),
                         bandpassFilter,
                         fft_shape_b,
                         fft_crop_b,

@@ -21,36 +21,50 @@ def next_fft_size(n: int) -> int:
     return int(min(smooth))
 
 
-def pad_tensor(t: torch.Tensor, target_shape: tuple, random_fill: bool) -> torch.Tensor:
-    """Pad a tensor to a target shape, centered, with optional random fill.
-
+def pad_tensor(t: torch.Tensor, target_shape: tuple, mirror_fill: bool) -> torch.Tensor:
+    """Pad a tensor to a target shape, centered, with optional mirror fill.
     Parameters
     ----------
     t : torch.Tensor
         Input tensor to pad.
     target_shape : tuple
         Desired output shape.
-    random_fill : bool
-        If True, fill padding with random values sampled from the input.
+    mirror_fill : bool
+        If True, fill padding with mirror (reflect) padding.
         If False, fill with zeros.
-
     Returns
     -------
     result : torch.Tensor
         Padded tensor of shape target_shape.
     """
-    if random_fill:
-        idx = torch.randint(
-            0, t.numel(), (int(np.prod(target_shape)),), device=t.device
-        )
-        result = t.ravel()[idx].reshape(target_shape)
+    if mirror_fill:
+        ndim = t.ndim
+        # F.pad reflect needs: 4D for 2D pad, 5D for 3D pad
+        # Add leading dims so we always have enough
+        x = t
+        dims_to_add = max(0, 4 - ndim) if ndim <= 2 else max(0, 5 - ndim)
+        for _ in range(dims_to_add):
+            x = x.unsqueeze(0)
+
+        pad_widths = []
+        for s, ts in reversed(list(zip(t.shape, target_shape, strict=False))):
+            total_pad = ts - s
+            before = total_pad // 2
+            after = total_pad - before
+            pad_widths.extend([before, after])
+
+        result = torch.nn.functional.pad(x, pad_widths, mode="reflect")
+
+        # Remove the extra leading dims
+        for _ in range(dims_to_add):
+            result = result.squeeze(0)
     else:
         result = torch.zeros(target_shape, dtype=t.dtype, device=t.device)
-    slices = tuple(
-        slice((ts - s) // 2, (ts - s) // 2 + s)
-        for s, ts in zip(t.shape, target_shape, strict=False)
-    )
-    result[slices] = t
+        slices = tuple(
+            slice((ts - s) // 2, (ts - s) // 2 + s)
+            for s, ts in zip(t.shape, target_shape, strict=False)
+        )
+        result[slices] = t
     return result
 
 
@@ -102,10 +116,10 @@ def prepare_halfmaps_for_fft(
     )
 
     # First pad to padded_shape with random values, then to fft_shape with zeros
-    map1_padded = pad_tensor(map1, padded_shape, random_fill=True)
-    map2_padded = pad_tensor(map2, padded_shape, random_fill=True)
-    map1_padded = pad_tensor(map1_padded, fft_shape, random_fill=False)
-    map2_padded = pad_tensor(map2_padded, fft_shape, random_fill=False)
+    map1_padded = pad_tensor(map1, padded_shape, mirror_fill=True)
+    map2_padded = pad_tensor(map2, padded_shape, mirror_fill=True)
+    map1_padded = pad_tensor(map1_padded, fft_shape, mirror_fill=False)
+    map2_padded = pad_tensor(map2_padded, fft_shape, mirror_fill=False)
 
     fft1 = torch.fft.rfftn(map1_padded, dim=list(range(map1.ndim)))
     fft2 = torch.fft.rfftn(map2_padded, dim=list(range(map2.ndim)))

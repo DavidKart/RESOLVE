@@ -230,23 +230,23 @@ def process_one_file(job: ProcessingJob) -> tuple[str, float, float] | None:
 		print("")
 
 	# How many random maps are needed to get a good enough reference distribution
-	windowtest = int(np.ceil(np.max(windows)))*2+1
-	maxEntries = np.prod([windowtest for _ in range(dimension)])	
+	maxWindow_test = int(np.ceil(np.max(windows)))*2+1
+	maxWindow_entries = np.prod([maxWindow_test for _ in range(dimension)])	
+	map_volume  = np.prod(np.array(sizeMap)+maxWindow_test)
 	if job.config == "Tilt-Series":
-		maxEntries = np.prod([windowtest for _ in range(dimension_windows)])	
-		possibleTests_nonOverlapping = int(np.prod(np.array(sizeMap[1:])+windowtest)/maxEntries)
-		possibleTests_nonOverlapping = possibleTests_nonOverlapping**2 # Consider enhanced possibility space, dependencies are introduced in Fourier space, and are thus real-space location independent 
+		maxWindow_entries = np.prod([maxWindow_test for _ in range(dimension_windows)])	
+		map_volume  = np.prod(np.array(sizeMap[1:]) + maxWindow_test)
+		possibleTests_nonOverlapping = int(map_volume / maxWindow_entries)
+		possibleTests_nonOverlapping = possibleTests_nonOverlapping **2 # Consider enhanced possibility space due to independent real-space locations between permutation half-maps 
 	else:
-		possibleTests_nonOverlapping = int(np.prod(np.array(sizeMap)+windowtest)/maxEntries)
-		possibleTests_nonOverlapping = possibleTests_nonOverlapping**2 # Consider enhanced possibility space, dependencies are introduced in Fourier space, and are thus real-space location independent 
+		possibleTests_nonOverlapping = int(map_volume / maxWindow_entries)
+		possibleTests_nonOverlapping = possibleTests_nonOverlapping **2 # Consider enhanced possibility space due to independent real-space locations between permutation half-maps 
 	it_randomMaps = int(np.ceil(job.referenceDistSize / possibleTests_nonOverlapping))
 
-
-
-
+	# Preparation as batches
 	if job.config == "Tilt-Series":
-		batchHalf1 = torch.from_numpy(halfMap1Data.astype(np.float32)).to(device)
-		batchHalf2 = torch.from_numpy(halfMap2Data.astype(np.float32)).to(device)
+		batchHalf1 = [torch.from_numpy(halfMap1Data[i].astype(np.float32)).to(device) for i in range(halfMap1Data.shape[0])]
+		batchHalf2 = [torch.from_numpy(halfMap2Data[i].astype(np.float32)).to(device) for i in range(halfMap2Data.shape[0])]
 	else:
 		batchHalf1 = [torch.from_numpy(halfMap1Data.astype(np.float32)).to(device)]
 		batchHalf2 = [torch.from_numpy(halfMap2Data.astype(np.float32)).to(device)]
