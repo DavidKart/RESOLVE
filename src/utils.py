@@ -74,7 +74,7 @@ def prepare_halfmaps_for_fft(
     pad: int = 0,
     device: str = "cpu",
 ) -> tuple[torch.Tensor, torch.Tensor, tuple, tuple]:
-    """Random pad, zero pad to efficient FFT size and calculate FFt.
+    """Mirror pad, zero pad to efficient FFT size and calculate FFt.
 
     Parameters
     ----------
@@ -83,7 +83,7 @@ def prepare_halfmaps_for_fft(
     map2 : torch.Tensor
         Second half-map as a float32 2D or 3D tensor.
     pad : int
-        Number of voxels to random-pad on each side.
+        Number of voxels to mirror-pad on each side.
         This is the edge-padding.
     device : str
         Device for computation (e.g. 'cpu' or 'cuda').

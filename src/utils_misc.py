@@ -267,11 +267,12 @@ def calc_res_index(
 
 
 def fill_map(
-    loc_res_map: list[torch.Tensor],
+    loc_res_map: torch.Tensor,
     resolutions: torch.Tensor,
     p_cutoff: float,
     low_res: float,
     test2: bool,
+    chunk_size: int = 2**20,
 ) -> torch.Tensor:
     """Build a resolution map by applying BY-FDR correction across shells.
 
@@ -281,7 +282,7 @@ def fill_map(
     
     Parameters
     ----------
-    loc_res_map : list of torch.Tensor
+    loc_res_map : torch.Tensor
         Per-shell p-value maps.  Each element has shape
         *local_res_map_size* (2-D or 3-D) and corresponds to one
         resolution shell.  The number of elements equals the number of
@@ -296,11 +297,8 @@ def fill_map(
     test2 : bool
         If ``True``, tolerate a single-shell gap when walking through
         the q-value sequence (see :func:`calc_res_index`).
-    dimension : int
-        Spatial dimensionality of the maps (2 or 3).
-    local_res_map_size : tuple of int
-        Shape of each per-shell local map (must match the spatial
-        dimensions of every element in *loc_res_map*).
+    chunk_size: int 
+        Processing in chunks to avoid memory overload.
 
     Returns
     -------
@@ -314,22 +312,29 @@ def fill_map(
     mapShape = loc_res_map[0].shape
 
     p_values = loc_res_map.reshape(num_shells, -1).T
+    
+    # BY FDR correction – batch over all voxels in chunks to avoid memory overflows
+    num_voxels = p_values.shape[0]
+    output_map = torch.full((num_voxels,), low_res, device=device, dtype=dtype)
+    
+    for start in range(0, num_voxels, chunk_size):
+        end = min(start + chunk_size, num_voxels)
+        chunk = p_values[start:end]
+        q_chunk = p_adjust_by(chunk)
 
-    # BY FDR correction – batch over all voxels at once
-    q_values = p_adjust_by(p_values)
+        # Resolution index per voxel
+        res_indices = calc_res_index(q_chunk, p_cutoff, test2)
 
-    # Resolution index per voxel
-    res_indices = calc_res_index(q_values, p_cutoff, test2)
-
-    # Convert to truncated resolution values
-    valid_mask = res_indices >= 0
-    output_map = torch.full((p_values.shape[0],), low_res, device=device, dtype=dtype)
-    if valid_mask.any():
-        sel = res_indices[valid_mask]
-        sel = resolutions[sel]
-        truncated = torch.floor(sel * 100.0) / 100.0
-        output_map[valid_mask] = truncated
-
+        # Convert to truncated resolution values
+        valid_mask = res_indices >= 0
+        if valid_mask.any():
+            sel = res_indices[valid_mask]
+            sel = resolutions[sel]
+            truncated = torch.floor(sel * 100.0) / 100.0
+            output_map[start:end][valid_mask] = truncated
+            
+        del q_chunk, res_indices, chunk
+        
     return output_map.reshape(mapShape)
 
 
