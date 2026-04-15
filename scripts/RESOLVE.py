@@ -2,10 +2,11 @@ import argparse
 import sys
 from src.resolve import main as resolve_main
 import os
+from importlib.metadata import version
 
 def main():
     parser = argparse.ArgumentParser(description="Run resolve.py without GUI")
-    
+    parser.add_argument("--version", action="version", version=f"RESOLVE {version('RESOLVE')}")
     parser.add_argument("--mode", choices=["single", "batch"], required=True, 
                         help="Execution mode: 'single' for file inputs, 'batch' for ID-based processing.")
     parser.add_argument("--config", choices=["Refined-Maps", "Micrographs", "Tilt-Series", "Tomograms"], 
