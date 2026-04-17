@@ -3,6 +3,38 @@
 import numpy as np
 import torch
 
+def estimate_random_maps(reference_dist_size: int, max_window: float, map_size: tuple[int, ...]) -> int:
+    """Estimate the number of permuted maps required for sampling.
+
+    This function estimates how many maps are needed for a target reference
+    distribution size, based on the size of the map and the maximum
+    sampling window. 
+
+    Parameters
+    ----------
+    reference_dist_size
+        Target number of reference distance samples to generate.
+
+    max_window
+        Maximum sampling window radius. 
+
+    map_size
+        Spatial size of the map as a tuple (e.g., ``(Y, X)`` for 2D or
+        ``(Z, Y, X)`` for 3D).
+
+    Returns
+    -------
+    int
+        Number of random maps required for the desired number of permutation maps.
+    """
+    dimension = len(map_size)
+    maxWindow_test = int(np.ceil(max_window))*2+1
+    maxWindow_entries = np.prod([maxWindow_test for _ in range(dimension)])	
+    map_volume  = np.prod(np.array(map_size)+maxWindow_test)
+    possibleTests_nonOverlapping = int(map_volume / maxWindow_entries)
+    possibleTests_nonOverlapping = possibleTests_nonOverlapping **2 
+    return int(np.ceil(reference_dist_size / possibleTests_nonOverlapping))    
+
 
 def next_fft_size(n: int) -> int:
     """Find the next integer >= n that is a product of only 2, 3, and 5."""

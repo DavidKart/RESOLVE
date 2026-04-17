@@ -229,19 +229,19 @@ def process_one_file(job: ProcessingJob) -> tuple[str, float, float] | None:
 		print("to measure resolutions [Å]: " + " ".join(map(str,np.round(resolutions,2))))
 		print("")
 
-	# How many random maps are needed to get a good enough reference distribution
-	maxWindow_test = int(np.ceil(np.max(windows)))*2+1
-	maxWindow_entries = np.prod([maxWindow_test for _ in range(dimension)])	
-	map_volume  = np.prod(np.array(sizeMap)+maxWindow_test)
-	if job.config == "Tilt-Series":
-		maxWindow_entries = np.prod([maxWindow_test for _ in range(dimension_windows)])	
-		map_volume  = np.prod(np.array(sizeMap[1:]) + maxWindow_test)
-		possibleTests_nonOverlapping = int(map_volume / maxWindow_entries)
-		possibleTests_nonOverlapping = possibleTests_nonOverlapping **2 # Consider enhanced possibility space due to independent real-space locations between permutation half-maps 
-	else:
-		possibleTests_nonOverlapping = int(map_volume / maxWindow_entries)
-		possibleTests_nonOverlapping = possibleTests_nonOverlapping **2 # Consider enhanced possibility space due to independent real-space locations between permutation half-maps 
-	it_randomMaps = int(np.ceil(job.referenceDistSize / possibleTests_nonOverlapping))
+	# # How many random maps are needed to get a good enough reference distribution
+	# maxWindow_test = int(np.ceil(np.max(windows)))*2+1
+	# maxWindow_entries = np.prod([maxWindow_test for _ in range(dimension)])	
+	# map_volume  = np.prod(np.array(sizeMap)+maxWindow_test)
+	# if job.config == "Tilt-Series":
+	# 	maxWindow_entries = np.prod([maxWindow_test for _ in range(dimension_windows)])	
+	# 	map_volume  = np.prod(np.array(sizeMap[1:]) + maxWindow_test)
+	# 	possibleTests_nonOverlapping = int(map_volume / maxWindow_entries)
+	# 	possibleTests_nonOverlapping = possibleTests_nonOverlapping **2 # Consider enhanced possibility space due to independent real-space locations between permutation half-maps 
+	# else:
+	# 	possibleTests_nonOverlapping = int(map_volume / maxWindow_entries)
+	# 	possibleTests_nonOverlapping = possibleTests_nonOverlapping **2 # Consider enhanced possibility space due to independent real-space locations between permutation half-maps 
+	# n_randomMaps = int(np.ceil(job.referenceDistSize / possibleTests_nonOverlapping))
 
 	# Preparation as batches
 	if job.config == "Tilt-Series":
@@ -265,7 +265,6 @@ def process_one_file(job: ProcessingJob) -> tuple[str, float, float] | None:
 		batchHalf2,
 		stepSize[-1],
 		gpu_id,
-		it_randomMaps,
 		job.referenceDistSize,
 		phasePermutation,
 		4096,

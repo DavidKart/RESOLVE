@@ -14,7 +14,6 @@ def compute_resolution(
     batch_halfMap2: list[torch.Tensor],
     stepSize: int = 3,
     gpu_ids: int | None = None,
-    it_randomMaps: int = 1,
     referenceDistSize: int = 10000,
     phase_permutation: bool = True,
     batch_size: int = 4096,
@@ -42,12 +41,10 @@ def compute_resolution(
         Larger values reduce computation time but lower spatial sampling.
     gpu_ids : int | None
         GPU device ID to use for computation. None for CPU.
-    it_randomMaps : int
-        Number of randomized map iterations used for reference distribution creation.
     referenceDistSize : int
         Number of correlation measurements to create reference distribution. Used for
         p-value determination. For small input map size, high referenceDistSize and high
-        window radii, multiple maps should be used in 'it_randomMaps' to create
+        window radii, multiple maps should are in 'n_randomMaps' to create
         a diverse enough reference distribution (or the reference distribution may
         narrow, leading to unauthentically high p-values.)
     phase_permutation: bool
@@ -97,6 +94,14 @@ def compute_resolution(
     maxRadius = np.array([pad for _ in range(dim)])
     stepSize_dim = np.array([stepSize for _ in range(dim)])
     output_shape = tuple(len(range(0, s, stepSize)) for s in ref_shape) # output shape reduced by step size
+    
+    # Estimate required number of random maps
+    n_randomMaps = utils.estimate_random_maps(
+        referenceDistSize, 
+        np.max(windows_radii), 
+        ref_shape
+        )
+    print(n_randomMaps)
 
     # Per-element FFT preparation and permutation map generation
     fft_pairs = []
@@ -115,7 +120,7 @@ def compute_resolution(
         if phase_permutation:
             fft2_abs = torch.abs(fft2)
 
-        for _ in range(it_randomMaps):
+        for _ in range(n_randomMaps):
             if phase_permutation:
                 angles_flat = torch.angle(fft2).reshape(-1)
                 shuffled_angles = angles_flat[
@@ -176,7 +181,7 @@ def compute_resolution(
             )
 
             permutated_sample2_filtered = []
-            for ind_rand in range(it_randomMaps):
+            for ind_rand in range(n_randomMaps):
                 permutated_sample2_filtered.append(
                     utils.apply_bandpass_and_invert(
                         permutation_maps_fft_all[b][ind_rand].to(device),
@@ -196,7 +201,7 @@ def compute_resolution(
                 corrected_box_size,
                 maxRadius,
                 stepSize_dim,
-                it_randomMaps,
+                n_randomMaps,
                 referenceDistSize,
                 device,
                 batch_size,
