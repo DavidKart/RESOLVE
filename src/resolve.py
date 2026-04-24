@@ -239,8 +239,6 @@ def process_one_file(job: ProcessingJob) -> tuple[str, float, float] | None:
 
 
 	phasePermutation = True
-	if job.config == "Refined-Maps":
-		phasePermutation = False
 
 	# Use batch processing here only for Tilt-series! 
 	locResMap = core.compute_resolution(
