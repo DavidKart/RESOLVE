@@ -69,7 +69,7 @@ def get_windows_empirical(
     apix : float
         pixel size in Angstrom        
     input_values : np.ndarray
-        Spatial-frequency values (in reciprocal pixels) at which to
+        Resolution values in Angstrom at which to
         evaluate the window-radius curve.
     dim : int
         Dimensionality of the measurement – must be ``2`` or ``3``.

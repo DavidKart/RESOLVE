@@ -101,7 +101,6 @@ def compute_resolution(
         np.max(windows_radii), 
         ref_shape
         )
-    print(n_randomMaps)
 
     # Per-element FFT preparation and permutation map generation
     fft_pairs = []
