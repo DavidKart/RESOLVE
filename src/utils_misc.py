@@ -418,7 +418,7 @@ def calculate_median_res(
     return dict_tilt_series, round(actualValues / overallValues, 2)
 
 
-def plot_heatmap_qvalue(
+def plot_heatmap_pvalue_median(
     x_values: list[float],
     y_values: list[float],
     output_path: str,
@@ -491,7 +491,7 @@ def plot_heatmap_qvalue(
     plt.ylabel(yAxisLabel + " p-value")
     plt.ylim(minV, maxV)  
     plt.grid(False)
-    plt.title(yAxisLabel + " resolution (FDR corrected) " + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
+    plt.title(yAxisLabel + " resolution " + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
     plt.tight_layout()
 
     # Save the plot in the specified format
@@ -686,9 +686,9 @@ def getFittedResolution(
     # Interpolate y-values at regular x intervals
     interpolated_y = interp_func(sampled_x)
     tensorBatch = torch.tensor(np.array([interpolated_y[::-1]]))
-    qVals_FDR = p_adjust_by(tensorBatch)
+    qVals_FDR = tensorBatch #p_adjust_by(tensorBatch) -> use unadjusted values
 
-    res_index = calc_res_index(qVals_FDR, p_cutoff, False)[0]#p 0.05 for median resolution
+    res_index = calc_res_index(qVals_FDR, p_cutoff, False)[0] # p 0.05 for median resolution
     if res_index < 0:
         actualRes_global = lowResRounded
     else:
@@ -765,7 +765,7 @@ def write_medianRes(
     if (config == "Tomograms") or (config == "Tilt-Series"): 
         plot_heatmap_pvalue(resPerZSlice_dict, os.path.join(outputDir, preName + "_pValuePlot"), 0, 0.05, "Slices", "Resolution", "p-Value", 7, 4, "svg", actualRes_global_new, ratioSignal)
 
-    plot_heatmap_qvalue(resolutions, pValListGlobal, os.path.join(outputDir, preName + "_medianPValuePlot"), 0, 0.5, "1/Resolution", mask_measure, 8, 5, "svg", actualRes_global_new, ratioSignal)
+    plot_heatmap_pvalue_median(resolutions, pValListGlobal, os.path.join(outputDir, preName + "_medianPValuePlot"), 0, 0.5, "1/Resolution", mask_measure, 8, 5, "svg", actualRes_global_new, ratioSignal)
     if mode != "batch": print(str(mask_measure) + " resolution calculated in signal regions: " + str(actualRes_global_new))
     if mode != "batch": print("ratio of considered signal regions: " + str(ratioSignal))  
     with open(os.path.join(outputDir, preName + "_rawPValues.json"), "w") as json_file:
