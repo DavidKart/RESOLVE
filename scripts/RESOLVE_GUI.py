@@ -216,7 +216,7 @@ class ConfigPanel(QWidget):
         # Measure dropdown (independent, always visible under this section)
         measure_layout = QHBoxLayout()
         self.mask_measure_combo = QComboBox()
-        self.mask_measure_combo.addItems(["median", "average"])
+        self.mask_measure_combo.addItems([["median", "mean"]])
         measure_layout.addWidget(self.mask_measure_combo)
 
         help_button_measure = QToolButton()

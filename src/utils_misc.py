@@ -389,7 +389,12 @@ def calculate_median_res(
         *mask_measure* in the input).
     """
     
-    reduce_fn = np.median if mask_measure == "median" else np.mean
+    # reduce_fn = np.median if mask_measure == "median" else np.mean
+    reduce_fn = {
+    "mean": np.mean,
+    "median": lambda x, **kw: np.quantile(x, 0.50, **kw),
+    }[mask_measure]
+    
     
     dict_tilt_series: dict[float, list[float]] = {}
     actualValues = 0
@@ -435,7 +440,7 @@ def plot_heatmap_pvalue_median(
     """Plot a q-value curve used to derive median resolution.
 
     The function plots summary statistics (median or mean
-    q-values) against resolution and saves the figure to
+    p-values) against resolution and saves the figure to
     disk. This is referred to as the "median p-value plot" in the paper and
     is produced for tomograms, tilt-series, and micrographs.
 
@@ -444,7 +449,7 @@ def plot_heatmap_pvalue_median(
     x_values : list of float
         Resolution values for each shell.
     y_values : list of float
-        Corresponding summary statistics (e.g. median q-values) for
+        Corresponding summary statistics (e.g. median p-values) for
         each resolution shell.
     output_path : str
         Destination file path **without** extension.  The appropriate
@@ -491,7 +496,7 @@ def plot_heatmap_pvalue_median(
     plt.ylabel(yAxisLabel + " p-value")
     plt.ylim(minV, maxV)  
     plt.grid(False)
-    plt.title(yAxisLabel + " resolution " + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
+    plt.title(yAxisLabel + " resolution (FDR-corrected) " + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
     plt.tight_layout()
 
     # Save the plot in the specified format
@@ -686,7 +691,7 @@ def getFittedResolution(
     # Interpolate y-values at regular x intervals
     interpolated_y = interp_func(sampled_x)
     tensorBatch = torch.tensor(np.array([interpolated_y[::-1]]))
-    qVals_FDR = tensorBatch #p_adjust_by(tensorBatch) -> use unadjusted values
+    qVals_FDR = p_adjust_by(tensorBatch)
 
     res_index = calc_res_index(qVals_FDR, p_cutoff, False)[0] # p 0.05 for median resolution
     if res_index < 0:
