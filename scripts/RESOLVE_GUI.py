@@ -120,7 +120,7 @@ class ConfigPanel(QWidget):
         self.gpu_checkbox = QCheckBox("Enable GPU")
         self.gpu_checkbox.setChecked(True)
         self.gpu_input = QLineEdit()
-        self.gpu_input.setPlaceholderText("0,1")
+        self.gpu_input.setPlaceholderText("0")
         self.gpu_input.setEnabled(True)
         self.gpu_input.setInputMask("")
         self.gpu_input.setMaxLength(32767)
@@ -216,7 +216,7 @@ class ConfigPanel(QWidget):
         # Measure dropdown (independent, always visible under this section)
         measure_layout = QHBoxLayout()
         self.mask_measure_combo = QComboBox()
-        self.mask_measure_combo.addItems([["median", "mean"]])
+        self.mask_measure_combo.addItems(["median", "AUC"])
         measure_layout.addWidget(self.mask_measure_combo)
 
         help_button_measure = QToolButton()

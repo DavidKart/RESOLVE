@@ -21,7 +21,7 @@ def main():
     # Input mask & measurement mode
     parser.add_argument("--mask_strategy", default="remove_background", help="Choose how to mask the map for global resolution estimation. Options: 'remove_background' (automatically remove regions not passing lowest measured resolution), 'signal_mask' (provide a custom binary mask file), 'full_map' (use the entire map without masking).")
     parser.add_argument("--maskFile", default="", help="Focus global resolution estimates with an input mask (default: empty string).")
-    parser.add_argument("--mask_measure", choices=["median", "mean"], default="median", 
+    parser.add_argument("--mask_measure", choices=["median", "AUC"], default="median", 
                         help="Measure to calculate global resolution from local measurements (default: median).")
 
     # Arguments for single-run mode

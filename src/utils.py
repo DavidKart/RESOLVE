@@ -282,5 +282,7 @@ def apply_bandpass_and_invert(
     ndim = fft_map.ndim
     bp_rfft = bandpass[..., : fft_map.shape[-1]]
     filtered = fft_map * bp_rfft
+    del fft_map
+    filtered[(0,) * ndim] = 0
     result = torch.fft.irfftn(filtered, s=fft_shape, dim=list(range(ndim)))
     return result[fft_crop]

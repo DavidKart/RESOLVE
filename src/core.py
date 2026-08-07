@@ -2,6 +2,7 @@
 
 import numpy as np
 import torch
+import gc
 
 from . import utils, utils_correlations
 
@@ -114,7 +115,8 @@ def compute_resolution(
             device=device,
         )
         fft_pairs.append((fft1.cpu(), fft2.cpu(), fft_shape, fft_crop)) # intermediate cpu transfer for gpu memory relief
-
+        del fft1
+        
         perm_ffts = []
         if phase_permutation:
             fft2_abs = torch.abs(fft2)
@@ -122,10 +124,11 @@ def compute_resolution(
         for _ in range(n_randomMaps):
             if phase_permutation:
                 angles_flat = torch.angle(fft2).reshape(-1)
-                shuffled_angles = angles_flat[
-                    torch.randperm(angles_flat.numel(), device=device)
-                ].reshape(fft2.shape)
-                perm_ffts.append((fft2_abs * torch.exp(1j * shuffled_angles)).cpu())
+                perm_idx = torch.randperm(angles_flat.numel(), dtype=torch.int32, device=device)
+                shuffled_angles = angles_flat[perm_idx].reshape(fft2.shape)
+                del angles_flat, perm_idx
+                perm_ffts.append(torch.polar(fft2_abs, shuffled_angles).cpu())
+                del shuffled_angles
             else:
                 t_flat = batch_halfMap2[b].flatten().float().to(device)
                 idx = (
@@ -135,7 +138,7 @@ def compute_resolution(
                 permutation_map = t_flat[idx].reshape(fft_shape)
                 fft3 = torch.fft.rfftn(permutation_map, dim=list(range(len(fft_shape))))
                 perm_ffts.append(fft3.cpu())
-        del fft1, fft2
+        del fft2
 
         permutation_maps_fft_all.append(perm_ffts)
         
@@ -205,5 +208,11 @@ def compute_resolution(
                 device,
                 batch_size,
             )
+
+            del sample1_filtered, sample2_filtered, permutated_sample2_filtered, permutated_sample1_filtered
+            
+        del bandpassFilter
+        gc.collect()
+        torch.cuda.empty_cache()
 
     return locResMap

@@ -613,9 +613,10 @@ def main(
 	print(f"Completed {completed}/{it_loops}")
   
 	# Write summary.tsv
+	summary_report = "AUC" if mask_measure == "AUC" else "median_resolution"
 	if len(nameArray) > 0 and config != "Refined-Maps":
 		with open(os.path.join(outputDir, "summary.tsv"), 'w', encoding='utf-8') as file:
-			file.write('id\tmedian_resolution\tsignal_ratio\n')
+			file.write(f'id\t{summary_report}\tsignal_ratio\n')
 			nameArray = np.array(nameArray)
 			resGlobArray = np.array(resGlobArray)
 			ratioSignalArray = np.array(ratioSignalArray)

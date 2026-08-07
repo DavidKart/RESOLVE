@@ -57,9 +57,9 @@ There are a few advanced processing options (opened when clicking `Show Advanced
 
 **`CPU Threads`** Specify number of CPU threads. For CPU batch processing, increased number of threads will significantly increase processing speed.
 
-**`GPU`** Choose whether to enable GPU processing or not, and option to choose GPUs. For micrographs, GPU mode is not recommended. Otherwise, GPU usage will make processing usually much faster. Probably 2 GPUs maximize efficiency for most cases.
+**`GPU`** Choose whether to enable GPU processing or not, and option to choose GPUs. GPU usage will make processing usually much faster. Currently, GPU only applies to batch processing, as maps are not split across GPUs.
 
-**`Run fast`** Possibly less accurate, but faster - lower sampling in Fourier space (fewer resolutions checked) and real space (increased step size). Requires also less memory.
+**`Run fast`** Usually sufficient. Slightly less accurate, but faster - lower sampling in Fourier space (fewer resolutions checked) and real space (increased step size). Requires also less memory.
 
 #### Settings for median global resolution estimates
 Median resolution is intended as a global quality for Micrographs, tilt-series or tomograms.
@@ -68,7 +68,7 @@ Median resolution is intended as a global quality for Micrographs, tilt-series o
 
 **`Input Mask`** Optional input when using 'signal mask' as a masking strategy. The input mask need to have the same dimensions as the input half-maps.
 
-**`Measure`** The mean may be chosen instead of the median.
+**`Measure`** The AUC (area under curve) may be chosen instead of the median. The AUC measures the area under the curve for the average (p-shell) p-values, not depending on a resolution cutoff (as determined by loss of significance). This is beneficial for cases where the quality changes to be investigated not necessarily transfer to a change resolution cutoff, or for cases where no significance is reache at all, but changes in p-values still ought to be documented.
 
 ### Command line mode
 

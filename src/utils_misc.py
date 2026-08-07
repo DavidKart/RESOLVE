@@ -103,24 +103,18 @@ def interpolate_with_zoom(
     step_size: tuple[int, ...],
     low_res: float,
 ) -> torch.Tensor:
-    """Rescale a map with trilinear interpolation and embed it in the output grid.
-
-    The input is resized so that it covers the strided sample positions
-    defined by *step_size*, then placed into a full-sized output tensor
-    whose remaining voxels are filled with *low_res*.
+    """Rescale a coarse resolution map to full size with tri/bilinear interpolation.
 
     Parameters
     ----------
     input_map : torch.Tensor
-        Map to be interpolated (2-D or 3-D).
+        Coarse map to be interpolated (2-D or 3-D).
     output_shape : tuple of int
-        Desired shape of the returned tensor.
+        Desired shape of the returned tensor (full map size).
     step_size : tuple of int
-        Sampling stride along each axis – determines how many output
-        voxels the zoomed map should span.
+        Sampling stride along each axis used to produce *input_map*.
     low_res : float
-        Fill value for output voxels outside the zoomed region
-        (typically the lowest resolution present in the data).
+        Unused – kept for call-site compatibility.
 
     Returns
     -------
@@ -129,25 +123,35 @@ def interpolate_with_zoom(
         as *input_map*.
     """
     ndim = len(output_shape)
+    # target_size is chosen so that align_corners=True maps coarse sample k
+    # exactly to fine position k*step, giving perfect spatial alignment.
     target_size = [
         int(range(0, output_shape[i], step_size[i])[-1]) + 1
         for i in range(ndim)
     ]
-
     # F.interpolate expects (N, C, *spatial) layout
     mode = "trilinear" if ndim == 3 else "bilinear"
     zoomed_map = torch.nn.functional.interpolate(
         input_map.unsqueeze(0).unsqueeze(0).float(),
         size=target_size,
         mode=mode,
-        align_corners=False,
+        align_corners=True,
     ).squeeze(0).squeeze(0).to(input_map.dtype)
 
-    output_map = input_map.new_full(output_shape, low_res)
-    slices = tuple(slice(0, min(zoomed_map.shape[i], output_shape[i])) for i in range(ndim))
-    output_map[slices] = zoomed_map[slices]
+    # Replicate-pad the last few voxels at each high-index edge instead of
+    # filling them with low_res, so all output positions get a real value.
+    if any(t < o for t, o in zip(target_size, output_shape)):
+        pad_widths = []
+        for i in range(ndim - 1, -1, -1):  # F.pad wants reversed dimension order
+            pad_widths.extend([0, output_shape[i] - target_size[i]])
+        # Re-add (N, C) dims: replicate pad needs rank 4 for 2-D, rank 5 for 3-D.
+        zoomed_map = torch.nn.functional.pad(
+            zoomed_map.unsqueeze(0).unsqueeze(0),
+            pad_widths,
+            mode="replicate",
+        ).squeeze(0).squeeze(0)
 
-    return output_map
+    return zoomed_map
 
 
 def p_adjust_by(p_values: torch.Tensor) -> torch.Tensor:
@@ -389,12 +393,7 @@ def calculate_median_res(
         *mask_measure* in the input).
     """
     
-    # reduce_fn = np.median if mask_measure == "median" else np.mean
-    reduce_fn = {
-    "mean": np.mean,
-    "median": lambda x, **kw: np.quantile(x, 0.50, **kw),
-    }[mask_measure]
-    
+    reduce_fn = np.median if mask_measure == "median" else np.mean # for AUC, take mean as well   
     
     dict_tilt_series: dict[float, list[float]] = {}
     actualValues = 0
@@ -405,7 +404,7 @@ def calculate_median_res(
         if res_rounded not in dict_tilt_series:
             dict_tilt_series[res_rounded] = []
 
-        if (config == "Tilt-Series") or (dimension == 3):
+        if (config == "Tilt-Series"): # treating per planes for tilt-series
             for z_slice in range(loc_res_map[index_i].shape[0]):
                 p_values_z = loc_res_map[index_i][z_slice]
                 p_values_z = p_values_z[signal_mask_step_size[z_slice] == 1]
@@ -426,6 +425,7 @@ def calculate_median_res(
 def plot_heatmap_pvalue_median(
     x_values: list[float],
     y_values: list[float],
+    y_values_FDR: list[float],
     output_path: str,
     minV: float,
     maxV: float,
@@ -451,6 +451,8 @@ def plot_heatmap_pvalue_median(
     y_values : list of float
         Corresponding summary statistics (e.g. median p-values) for
         each resolution shell.
+    y_values_FDR : list of float
+        Median q-values for meidan resolution, empty for AUC.
     output_path : str
         Destination file path **without** extension.  The appropriate
         suffix is appended based on *format*.
@@ -486,17 +488,23 @@ def plot_heatmap_pvalue_median(
     x_values = np.array(x_values, dtype=np.float32) # Resolutions
     x_values = 1/x_values
     y_values = np.array(y_values, dtype=np.float32)  # p-values
+    y_values_FDR  = np.array(y_values_FDR, dtype=np.float32)  # p-values
 
     # Create the plot
     plt.figure(figsize=(figSizeX, figSizeY))
     plt.rcParams['font.size'] = 14
 
-    plt.plot(x_values, y_values, linestyle='-', marker='o', color='b', markersize=3)
+    plt.plot(x_values, y_values, linestyle='-', marker='o', color='b', markersize=3, label='p-values')
+    if yAxisLabel != "AUC":
+        plt.plot(x_values, y_values_FDR, linestyle='-', marker='o', color='g', markersize=3, label='q-values')
+    plt.legend()
+    
     plt.xlabel(xAxisLabel)
     plt.ylabel(yAxisLabel + " p-value")
     plt.ylim(minV, maxV)  
     plt.grid(False)
-    plt.title(yAxisLabel + " resolution (FDR-corrected) " + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
+    corrected = "" if yAxisLabel == "AUC" else "(FDR-corrected) resolution "
+    plt.title(yAxisLabel +" " + corrected + str(actualResGlobal) +  " (signal ratio: " + str(ratioSignal) + ")")
     plt.tight_layout()
 
     # Save the plot in the specified format
@@ -513,6 +521,7 @@ def plot_heatmap_pvalue_median(
 def plot_heatmap_pvalue(
     data_dict: dict[float | str, list[float]],
     output_path: str,
+    maskMeasure: str,
     minV: float,
     maxV: float,
     xAxisLabel: str,
@@ -540,6 +549,8 @@ def plot_heatmap_pvalue(
         row of the heatmap.
     output_path : str
         Destination file path.
+    maskMeasure: str
+        Either AUC or median_resolution
     minV : float
         Lower bound of the colour-map range.
     maxV : float
@@ -622,8 +633,9 @@ def plot_heatmap_pvalue(
     ax.set_yticks(y_ticks_positions)
     ax.set_yticklabels([sorted_keys[int(tick)] for tick in y_ticks_positions])
 
+    corrected = "AUC" if maskMeasure == "AUC" else "(FDR-corrected) resolution "
     # if (actualResGlobal != 0) and (ratioSignal != 0):
-    plt.title("signal ratio " + str(ratioSignal) + "\nmedian resolution within signal " + str(actualResGlobal))
+    plt.title("signal ratio " + str(ratioSignal) + f'\n{corrected} within signal ' + str(actualResGlobal))
     plt.tight_layout()
     if format == "svg":
         plt.rcParams["svg.fonttype"] = "none"
@@ -667,9 +679,6 @@ def getFittedResolution(
 
     Returns
     -------
-    mean_complement : float
-        One minus the mean of the FDR-corrected q-values, serving as
-        an overall confidence score for the curve.
     actualRes_global : float
         Estimated resolution cutoff (truncated to two decimal places),
         or *lowResRounded* if no shell passes the significance
@@ -698,7 +707,57 @@ def getFittedResolution(
         actualRes_global = lowResRounded
     else:
         actualRes_global = int((sampled_x[::-1][res_index]) * 100) / 100  # Round to 2 decimal places
-    return 1-torch.mean(qVals_FDR), actualRes_global
+        
+    qVals_FDR_resampled = interp1d(sampled_x, np.asarray(qVals_FDR.cpu())[0][::-1], kind='linear', fill_value='extrapolate')(np.asarray(x_list))
+    return qVals_FDR_resampled.tolist(), actualRes_global
+
+def getAUC(
+    x_list: list[float],
+    y_list: list[float],
+    normalize: bool = True,
+) -> float:
+    """Compute the area under the FSC curve assuming regular spacing in frequency space.
+
+    The x-values (resolution shells) are inverted to 1/resolution before
+    integration, where they are evenly spaced.  When *normalize* is
+    ``True`` the area is divided by the total span of the 1/x axis so that the
+    result lies in [0, 1].
+
+    Parameters
+    ----------
+    x_list : list of float
+        Resolution values for each shell (x-coordinates), in the same units
+        as used elsewhere (e.g. Ångström).
+    y_list : list of float
+        Corresponding FSC (or p-value) for each shell (y-coordinates).
+    normalize : bool, optional
+        Whether to normalise the AUC by the frequency range so that the
+        returned value is between 0 and 1 (default ``True``).
+
+    Returns
+    -------
+    auc : float
+        Area under the curve in frequency space, optionally normalised to
+        [0, 1].
+    """
+    x = np.array(x_list)
+    y = np.array(y_list)
+
+    freq = 1.0 / x
+
+    # Sort by ascending frequency so np.trapz integrates left-to-right
+    order = np.argsort(freq)
+    freq_sorted = freq[order]
+    y_sorted = y[order]
+
+    auc = np.trapezoid(y_sorted, freq_sorted)
+
+    if normalize:
+        freq_range = freq_sorted[-1] - freq_sorted[0]
+        if freq_range > 0:
+            auc /= freq_range
+
+    return np.round(float(auc), 4)
 
 def write_medianRes(
     resPerZSlice_dict: dict[float, list[float]],
@@ -725,8 +784,7 @@ def write_medianRes(
     ----------
     resPerZSlice_dict : dict of {float : list of float}
         Mapping from resolution to a list of per-slice summary
-        statistics (median or mean p-values), as produced by
-        :func:`calculate_median_res`.
+        statistics as produced by :func:`calculate_median_res`.
     ratioSignal : float
         Fraction of voxels inside the signal mask, displayed in the
         plot titles.
@@ -766,11 +824,17 @@ def write_medianRes(
         median_p_per_res = np.mean(resPerZSlice_dict[i])
         pValListGlobal.append(median_p_per_res)
 
-    pVals_qual, actualRes_global_new = getFittedResolution(resolutions, pValListGlobal, lowResRounded, p_cutoff)
-    if (config == "Tomograms") or (config == "Tilt-Series"): 
-        plot_heatmap_pvalue(resPerZSlice_dict, os.path.join(outputDir, preName + "_pValuePlot"), 0, 0.05, "Slices", "Resolution", "p-Value", 7, 4, "svg", actualRes_global_new, ratioSignal)
+    qvalsFDR = []
+    if mask_measure == "AUC":
+        actualRes_global_new = getAUC(resolutions, pValListGlobal)
+    else:
+        qvalsFDR, actualRes_global_new = getFittedResolution(resolutions, pValListGlobal, lowResRounded, p_cutoff)
+        
+    if (config == "Tilt-Series"): # or (config == "Tomograms") 
+        plot_heatmap_pvalue(resPerZSlice_dict, os.path.join(outputDir, preName + "_pValuePlot"), mask_measure, 0, 0.05, "Slices", "Resolution", "p-Value", 7, 4, "svg", actualRes_global_new, ratioSignal)
 
-    plot_heatmap_pvalue_median(resolutions, pValListGlobal, os.path.join(outputDir, preName + "_medianPValuePlot"), 0, 0.5, "1/Resolution", mask_measure, 8, 5, "svg", actualRes_global_new, ratioSignal)
+    y_limit = 1 if mask_measure == "AUC" else 0.5 
+    plot_heatmap_pvalue_median(resolutions, pValListGlobal, qvalsFDR, os.path.join(outputDir, preName + "_medianPValuePlot"), 0, y_limit, "1/Resolution", mask_measure, 8, 5, "svg", actualRes_global_new, ratioSignal)
     if mode != "batch": print(str(mask_measure) + " resolution calculated in signal regions: " + str(actualRes_global_new))
     if mode != "batch": print("ratio of considered signal regions: " + str(ratioSignal))  
     with open(os.path.join(outputDir, preName + "_rawPValues.json"), "w") as json_file:
