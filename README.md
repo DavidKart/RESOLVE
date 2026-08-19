@@ -14,8 +14,6 @@ cd RESOLVE
 
 ### Creating python environment
 
-We recommend using Miniforge to avoid licensing issues. 
-
 ```bash
 conda create -n resolve python=3.11
 conda activate resolve

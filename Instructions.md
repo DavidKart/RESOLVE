@@ -57,18 +57,18 @@ There are a few advanced processing options (opened when clicking `Show Advanced
 
 **`CPU Threads`** Specify number of CPU threads. For CPU batch processing, increased number of threads will significantly increase processing speed.
 
-**`GPU`** Choose whether to enable GPU processing or not, and option to choose GPUs. GPU usage will make processing usually much faster. Currently, GPU only applies to batch processing, as maps are not split across GPUs.
+**`GPU`** Choose whether to enable GPU processing or not, and option to choose GPUs. GPU usage will usually make processing much faster. Currently, GPU only applies to batch processing, as maps are not split across GPUs.
 
 **`Run fast`** Usually sufficient. Slightly less accurate, but faster - lower sampling in Fourier space (fewer resolutions checked) and real space (increased step size). Requires also less memory.
 
 #### Settings for median global resolution estimates
-Median resolution is intended as a global quality for Micrographs, tilt-series or tomograms.
+Median resolution is intended as a global quality metric for micrographs, tilt-series or tomograms.
 
 **`Masking strategy`** Choose how to mask the map for global resolution estimation. Options: 'remove_background' (Default. Automatically remove regions not passing the lowest measured resolution shell. This may be useful for partially empty input maps.), 'signal_mask' (provide a custom binary mask file to focus the measure on a region of interest), 'full_map' (use the entire map without masking).
 
-**`Input Mask`** Optional input when using 'signal mask' as a masking strategy. The input mask need to have the same dimensions as the input half-maps.
+**`Input Mask`** Optional input when using 'signal mask' as a masking strategy. The input mask needs to have the same dimensions as the input half-maps.
 
-**`Measure`** The AUC (area under curve) may be chosen instead of the median. The AUC measures the area under the curve for the average (p-shell) p-values, not depending on a resolution cutoff (as determined by loss of significance). This is beneficial for cases where the quality changes to be investigated not necessarily transfer to a change resolution cutoff, or for cases where no significance is reache at all, but changes in p-values still ought to be documented.
+**`Measure`** The AUC (area under curve) may be chosen instead of the median. The AUC measures the area under the curve for the average *p*-values, not depending on a resolution cutoff (as determined by loss of significance). This is beneficial for cases where the quality changes to be investigated do not necessarily transfer to a change in resolution cutoff, or for cases where no significance is reached at all, but changes in *p*-values still ought to be documented.
 
 ### Command line mode
 
@@ -101,7 +101,7 @@ cd tutorial_data
 
 Run RESOLVE from command line:
 ```bash
-RESOLVE --mode single --config "Refined-Maps" --input1 STA/emd_34658_half_map_1.map --input2 STA/emd_34658_half_map_2.map --outputDir STA_output --gpu_enabled
+RESOLVE --mode single --config Refined-Maps --input1 STA/emd_34658_half_map_1.map --input2 STA/emd_34658_half_map_2.map --outputDir STA_output --gpu_enabled
 ```
 
 The output can be found in the newly created STA_output directory. Note that both `map` as well as `mrc` endings should work.
@@ -115,17 +115,17 @@ cd tutorial_data
 
 Run RESOLVE from command line:
 ```bash
-RESOLVE --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output --cpu_threads 16
+RESOLVE --mode batch --config Micrographs --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output --cpu_threads 16
 ```
 
 For faster processing (skipping some shells and increased step size), add the `--fast` option:
 ```bash
-RESOLVE --mode batch --config "Micrographs" --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output --cpu_threads 16 --fast
+RESOLVE --mode batch --config Micrographs --inputDir micrographs --odd_id ODD --even_id EVN --outputDir micrograph_batch_output --cpu_threads 16 --fast
 ```
 
 For GPU batch processing, instances will be split across GPUs.
 
-The output can be found in the newly created micrograph_batch_output directory. For each input micrograph half-map pair, there will be an output .mrc file, an output .png file and a *q*-value plot (with the median *q*-value per resolution). Note that the cutoff for median (global) resolution determination is at *q* = 0.05. Note also the summary.tsv file, the summarized and sorted output for the median (global) resolution for all input micrographs.
+The output can be found in the newly created micrograph_batch_output directory. For each input micrograph half-map pair, there will be an output .mrc file, an output .png file and a *q*-value plot (with the median *p*- and *q*-values per resolution). Note that the cutoff for median (global) resolution determination is at *q* = 0.05. Note also the summary.tsv file, the summarized and sorted output for the median (global) resolution for all input micrographs.
 
 ### Notes about tilt-series and tomogram batch processing
 
